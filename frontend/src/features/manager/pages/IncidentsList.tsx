@@ -2,10 +2,10 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useDepartmentIncidents } from '../hooks/useIncidents';
+import { useDepartmentIncidents } from '../../incidents/hooks/useIncidents';
 import { useAuthContext } from '../../auth/context/AuthContext';
 import { getDepartmentName } from '../../../shared/utils/constants';
-import type { Incident } from '../types/incident';
+import type { Incident } from '../../incidents/types/incident';
 
 export const IncidentsList: React.FC = () => {
   const navigate = useNavigate();
@@ -47,7 +47,7 @@ export const IncidentsList: React.FC = () => {
       `"${(i.reporter?.name || 'Unknown').replaceAll('"', '""')}"`,
       new Date(i.createdAt).toISOString(),
     ]);
-    return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    return [headers.join(','), ...rows.map((r: (string | number)[]) => r.join(','))].join('\n');
   };
 
   const getCSVExportData = () => {
@@ -268,7 +268,7 @@ export const IncidentsList: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredIncidents.map((incident, i) => (
+                filteredIncidents.map((incident: Incident, i: number) => (
                   <tr
                     key={incident.id}
                     onClick={() => navigate(`/incidents/${incident.id}`)}

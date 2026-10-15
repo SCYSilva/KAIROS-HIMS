@@ -382,6 +382,19 @@ export class ManagerService {
         },
       });
 
+      // Ensure structured investigation record is initialized
+      await tx.investigation.upsert({
+        where: { incidentId },
+        create: {
+          incidentId,
+          leadInvestigatorId: investigatorId,
+          status: 'DRAFT',
+        },
+        update: {
+          leadInvestigatorId: investigatorId,
+        },
+      });
+
       await tx.incidentAuditLog.create({
         data: {
           incidentId,
@@ -421,6 +434,14 @@ export class ManagerService {
           // If approved, progress incident to PENDING_ACTION
           status: isApproved ? 'PENDING_ACTION' : 'INVESTIGATING',
         },
+      });
+
+      // Synchronize structured Investigation record status
+      await tx.investigation.updateMany({
+        where: { incidentId },
+        data: isApproved
+          ? { status: 'APPROVED', approvedAt: new Date(), lockedAt: new Date() }
+          : { status: 'REVISION_REQUESTED', lockedAt: null, revisionNumber: { increment: 1 } },
       });
 
       await tx.incidentAuditLog.create({
@@ -474,6 +495,31 @@ export class ManagerService {
         },
       });
 
+      // Synchronize decoupled ActionItem model
+      const actionItem = await tx.actionItem.create({
+        data: {
+          incidentId,
+          title: data.title,
+          type: data.actionType === 'PREVENTIVE' ? 'PREVENTIVE' : 'CORRECTIVE',
+          priority: data.priority,
+          dueDate: new Date(data.dueDate),
+          ownerId: data.actionOwnerId,
+          description: data.description,
+          status: 'OPEN',
+          reviewStatus: 'ACTIVE',
+        },
+      });
+
+      await tx.actionHistory.create({
+        data: {
+          actionItemId: actionItem.id,
+          actorId: managerId,
+          eventType: 'ASSIGNED',
+          toStatus: 'OPEN',
+          note: `Assigned to ${owner.name} by Department Manager.`,
+        },
+      });
+
       await tx.incidentAuditLog.create({
         data: {
           incidentId,
@@ -517,6 +563,43 @@ export class ManagerService {
             verificationNotes: notes || 'Verified by Department Manager',
           },
         });
+
+        // Sync ActionItem
+        const matchedAction = await tx.actionItem.findFirst({
+          where: { incidentId, title: action.title },
+        });
+        if (matchedAction) {
+          await tx.actionItem.update({
+            where: { id: matchedAction.id },
+            data: {
+              reviewStatus: 'VERIFIED',
+              status: 'COMPLETED',
+              completedAt: new Date(),
+              managerReviewComment: notes || 'Verified by Department Manager',
+              effectiveness: 'EFFECTIVE',
+              effectivenessScore: 100,
+            },
+          });
+          await tx.actionHistory.create({
+            data: {
+              actionItemId: matchedAction.id,
+              actorId: managerId,
+              eventType: 'VERIFIED',
+              fromStatus: matchedAction.status,
+              toStatus: 'COMPLETED',
+              note: notes || 'Verified by Department Manager',
+            },
+          });
+          await tx.actionNotification.create({
+            data: {
+              actionItemId: matchedAction.id,
+              userId: matchedAction.ownerId,
+              type: 'VERIFIED',
+              title: 'Action Verified',
+              message: `Your action "${matchedAction.title}" has been verified by the Department Manager.`,
+            },
+          });
+        }
       } else {
         updatedAction = await tx.capaAction.update({
           where: { id: actionId },
@@ -526,6 +609,40 @@ export class ManagerService {
             verificationNotes: notes || 'Returned for revision by Department Manager',
           },
         });
+
+        // Sync ActionItem
+        const matchedAction = await tx.actionItem.findFirst({
+          where: { incidentId, title: action.title },
+        });
+        if (matchedAction) {
+          await tx.actionItem.update({
+            where: { id: matchedAction.id },
+            data: {
+              reviewStatus: 'RETURNED_FOR_REVISION',
+              status: 'IN_PROGRESS',
+              managerReviewComment: notes || 'Returned for revision by Department Manager',
+            },
+          });
+          await tx.actionHistory.create({
+            data: {
+              actionItemId: matchedAction.id,
+              actorId: managerId,
+              eventType: 'RETURNED',
+              fromStatus: matchedAction.status,
+              toStatus: 'IN_PROGRESS',
+              note: notes || 'Returned for revision by Department Manager',
+            },
+          });
+          await tx.actionNotification.create({
+            data: {
+              actionItemId: matchedAction.id,
+              userId: matchedAction.ownerId,
+              type: 'RETURNED',
+              title: 'Action Returned for Revision',
+              message: `Revision required: ${notes || 'Returned by Department Manager.'}`,
+            },
+          });
+        }
       }
 
       await tx.incidentAuditLog.create({

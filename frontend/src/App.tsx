@@ -2,31 +2,41 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Routes, Route } from 'react-router-dom';
-import { CreateIncident } from './features/incidents/pages/CreateIncident';
-import { IncidentsList } from './features/incidents/pages/IncidentsList';
-import { ManagerDashboard } from './features/incidents/pages/ManagerDashboard';
-import { IncidentDetails } from './features/incidents/pages/IncidentDetails';
-import InvestigatorDashboard from './features/incidents/pages/InvestigatorDashboard';
-import InvestigatorWorkspace from './features/incidents/pages/InvestigatorWorkspace';
-import { Login } from './features/auth/pages/Login';
-import { ActionOwnerDashboard } from './features/incidents/pages/ActionOwnerDashboard';
 import { Toaster } from 'react-hot-toast';
+
+// ── Shared Infrastructure ──────────────────────────────────────────────────
 import { AuthProvider, useAuthContext } from './features/auth/context/AuthContext';
 import { ProtectedRoute } from './shared/components/ProtectedRoute';
 import { MainLayout } from './shared/components/MainLayout';
-import ActionOwnerIncidentDetails from './features/incidents/pages/ActionOwnerIncidentDetails';
-import MyIncidentsPage from './features/incidents/pages/MyIncidentsPage';
 
-// Modernized Department Manager Clinical Governance Components
+// ── Auth Feature ──────────────────────────────────────────────────────────
+import { Login } from './features/auth/pages/Login';
+
+// ── 1. Staff Feature Pages ────────────────────────────────────────────────
+import { CreateIncident } from './features/staff/pages/CreateIncident';
+import MyIncidentsPage from './features/staff/pages/MyIncidentsPage';
+import { StaffIncidentDetails } from './features/staff/pages/StaffIncidentDetails';
+
+// ── 2. Investigator Feature Pages ─────────────────────────────────────────
+import InvestigatorDashboard from './features/investigator/pages/InvestigatorDashboard';
+import InvestigatorWorkspace from './features/investigator/pages/InvestigatorWorkspace';
+
+// ── 3. Action Owner Feature Pages ─────────────────────────────────────────
+import { ActionOwnerDashboard } from './features/action-owner/pages/ActionOwnerDashboard';
+import ActionOwnerIncidentDetails from './features/action-owner/pages/ActionOwnerIncidentDetails';
+
+// ── 4. Department Manager Feature Pages ────────────────────────────────────
+import { ManagerDashboard } from './features/manager/pages/ManagerDashboard';
 import { ManagerIncidentDetails } from './features/manager/pages/ManagerIncidentDetails';
 import { ManagerAnalytics } from './features/manager/pages/ManagerAnalytics';
 import { ManagerTeam } from './features/manager/pages/ManagerTeam';
+import { IncidentsList } from './features/manager/pages/IncidentsList';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, retry: 1 } },
 });
 
-// Home router based on user role
+// Home router: Directs each user to their role-specific workspace landing page
 const HomeRoute = () => {
   const { user, isLoading } = useAuthContext();
 
@@ -53,13 +63,13 @@ const HomeRoute = () => {
   }
 };
 
-// Smart Incident Route: Forces Modernized 4-Tab Governance for Managers/Admins
+// Smart Incident Route: Serves 4-Tab Clinical Governance to Managers, staff tracking view to others
 const IncidentDetailsDispatcher = () => {
   const { user } = useAuthContext();
   if (user?.role === 'MANAGER' || user?.role === 'ADMIN') {
     return <ManagerIncidentDetails />;
   }
-  return <IncidentDetails />;
+  return <StaffIncidentDetails />;
 };
 
 function App() {
@@ -68,10 +78,10 @@ function App() {
       <AuthProvider>
         <Toaster position="top-right" reverseOrder={false} />
         <Routes>
-          {/* Public Route */}
+          {/* Public Authentication Route */}
           <Route path="/login" element={<Login />} />
 
-          {/* Protected Routes */}
+          {/* Protected Application Shell */}
           <Route
             element={
               <ProtectedRoute
@@ -80,20 +90,27 @@ function App() {
             }
           >
             <Route element={<MainLayout />}>
+              {/* Home Route */}
               <Route path="/" element={<HomeRoute />} />
+
+              {/* Staff Routes */}
               <Route path="/my-incidents" element={<MyIncidentsPage />} />
               <Route path="/submit-incident" element={<CreateIncident />} />
+              <Route path="/staff/incidents/:id" element={<StaffIncidentDetails />} />
 
-              {/* Incidents View - Loads Modernized 4-Tab Governance for Managers */}
+              {/* Smart Incident Detail Route */}
               <Route path="/incidents/:id" element={<IncidentDetailsDispatcher />} />
               <Route path="/manager/incidents/:id" element={<ManagerIncidentDetails />} />
 
+              {/* Investigator Routes */}
               <Route path="/investigator" element={<InvestigatorDashboard />} />
               <Route path="/investigator/:id" element={<InvestigatorWorkspace />} />
+
+              {/* Action Owner Routes */}
               <Route path="/action-owner" element={<ActionOwnerDashboard />} />
               <Route path="/action-owner/:id" element={<ActionOwnerIncidentDetails />} />
 
-              {/* Manager & Admin Only Modernized Views */}
+              {/* Department Manager & Admin Workspace Routes */}
               <Route element={<ProtectedRoute allowedRoles={['MANAGER', 'ADMIN']} />}>
                 <Route path="/incidents" element={<IncidentsList />} />
                 <Route path="/team" element={<ManagerTeam />} />

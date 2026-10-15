@@ -2,7 +2,9 @@
 
 import { apiClient } from '../../../shared/api/axios';
 
-// ── Types & Governance Contracts ──────────────────────────────────────────
+// ==========================================
+// 1. DOMAIN ENUMS & BASE TYPES
+// ==========================================
 
 export type IncidentStatus =
   | 'OPEN'
@@ -35,6 +37,10 @@ export interface IncidentAttachment {
   fileType: string;
   uploadedAt: string;
 }
+
+// ==========================================
+// 2. CLINICAL GOVERNANCE ENTITIES
+// ==========================================
 
 export interface CapaAction {
   id: number;
@@ -134,6 +140,10 @@ export interface ManagerIncidentDetail {
   updatedAt: string;
 }
 
+// ==========================================
+// 3. MUTATION PAYLOAD CONTRACTS
+// ==========================================
+
 export interface TriagePayload {
   decision: 'ACCEPT' | 'REVISE' | 'REJECT';
   rationale: string;
@@ -195,6 +205,65 @@ export interface CloseIncidentPayload {
   closureSummary: string;
 }
 
+// ==========================================
+// 4. COMMAND CENTRE & ANALYTICS DATA MODELS
+// ==========================================
+
+// Top-level Decision Counters (Tier 1 KPI Row)
+export interface ManagerCommandCentreKPIs {
+  awaitingDecisionCount: number;    // Status = OPEN (Needs Triage)
+  unassignedCount: number;          // Status = ACCEPTED & investigatorId == null
+  findingsToApproveCount: number;   // Status = INVESTIGATING & reviewStatus == PENDING
+  awaitingVerificationCount: number;// CapaAction status = COMPLETED & isVerified == false
+  overdueActionsCount: number;      // CapaAction dueDate < today & status != COMPLETED
+  highRiskOpenCount: number;        // Severity in [HIGH, CRITICAL] & status != CLOSED
+}
+
+// Urgent Feed Queue Item (Tier 2 Left Column)
+export interface AttentionQueueItem {
+  id: number;
+  incidentId: number;
+  title: string;
+  type: 'ACTION_OVERDUE' | 'TRIAGE_PENDING' | 'FINDINGS_REVIEW' | 'VERIFICATION_PENDING';
+  severity: Severity;
+  priority?: CapaPriority;
+  assigneeName?: string;
+  daysOverdue?: number;
+  dueDate?: string;
+}
+
+// Department Health & Operational Benchmarks (Tier 2 Right Column)
+export interface DepartmentHealthMetrics {
+  closureRatePercentage: number;     // (Closed incidents / Total incidents) * 100
+  actionCompletionPercentage: number;// (Completed CAPAs / Total CAPAs) * 100
+  slaCompliancePercentage: number;   // Incidents processed within SLA guidelines
+  openIncidentsCount: number;        // Total ongoing incidents
+  oldestOpenIncidentDays: number;    // Days since oldest open incident was logged
+}
+
+// Overdue Actions Workbench Card (Tier 3 Grid)
+export interface OverdueActionWorkbenchItem {
+  actionId: number;
+  incidentId: number;
+  incidentTitle: string;
+  actionTitle: string;
+  assignedOwnerName: string;
+  assignedOwnerEmail: string;
+  severity: Severity;
+  priority: CapaPriority;
+  dueDate: string;
+  daysOverdue: number;
+}
+
+// Complete Aggregated Dashboard Response
+export interface ManagerDashboardData {
+  kpis: ManagerCommandCentreKPIs;
+  attentionItems: AttentionQueueItem[];
+  departmentHealth: DepartmentHealthMetrics;
+  overdueActions: OverdueActionWorkbenchItem[];
+}
+
+// Analytical Views Model (/analytics)
 export interface ManagerAnalyticsSummary {
   totalIncidents: number;
   openTriage: number;
@@ -241,9 +310,20 @@ export interface DepartmentTeamResponse {
   })[];
 }
 
-// ── API Methods ───────────────────────────────────────────────────────────
+// ==========================================
+// 5. REST CLIENT API CALLS
+// ==========================================
 
 export const managerApi = {
+  // Fetch Command Centre Dashboard Data
+  getDashboardData: async (): Promise<ManagerDashboardData> => {
+    const response = await apiClient.get<{ success: boolean; data: ManagerDashboardData }>(
+      '/manager/dashboard'
+    );
+    return response.data.data;
+  },
+
+  // Fetch Incident Details with Relations
   getIncidentDetails: async (id: number): Promise<ManagerIncidentDetail> => {
     const response = await apiClient.get<{ success: boolean; data: ManagerIncidentDetail }>(
       `/manager/incidents/${id}`
@@ -251,6 +331,7 @@ export const managerApi = {
     return response.data.data;
   },
 
+  // Fetch Department Personnel Roster
   getDepartmentTeam: async (): Promise<{ counts: any; users: DepartmentUser[] }> => {
     const response = await apiClient.get<{
       success: boolean;
@@ -259,6 +340,7 @@ export const managerApi = {
     return response.data.data;
   },
 
+  // Delegate Role to Team Member
   updateTeamRole: async (userId: number, role: 'STAFF' | 'INVESTIGATOR' | 'ACTION_OWNER') => {
     const response = await apiClient.patch<{
       success: boolean;
@@ -268,6 +350,7 @@ export const managerApi = {
     return response.data;
   },
 
+  // Fetch Analytics & Trends
   getAnalytics: async (): Promise<ManagerAnalyticsData> => {
     const response = await apiClient.get<{ success: boolean; data: ManagerAnalyticsData }>(
       '/manager/analytics'
@@ -275,31 +358,37 @@ export const managerApi = {
     return response.data.data;
   },
 
+  // Stage 1: Triage Action
   triageIncident: async (id: number, payload: TriagePayload) => {
     const response = await apiClient.post(`/manager/incidents/${id}/triage`, payload);
     return response.data;
   },
 
+  // Stage 1: Audited Record Correction
   correctRecord: async (id: number, payload: RecordCorrectionPayload) => {
     const response = await apiClient.patch(`/manager/incidents/${id}/correction`, payload);
     return response.data;
   },
 
+  // Stage 2: Assign Investigator
   assignInvestigator: async (id: number, payload: AssignInvestigatorPayload) => {
     const response = await apiClient.post(`/manager/incidents/${id}/investigator`, payload);
     return response.data;
   },
 
+  // Stage 2: Review Findings
   reviewInvestigation: async (id: number, payload: ReviewInvestigationPayload) => {
     const response = await apiClient.post(`/manager/incidents/${id}/review-investigation`, payload);
     return response.data;
   },
 
+  // Stage 3: Create CAPA Action
   createCapaAction: async (id: number, payload: CreateCapaPayload) => {
     const response = await apiClient.post(`/manager/incidents/${id}/actions`, payload);
     return response.data;
   },
 
+  // Stage 3: Verify CAPA Action Completion
   verifyCapaAction: async (id: number, actionId: number, payload: VerifyCapaPayload) => {
     const response = await apiClient.post(
       `/manager/incidents/${id}/actions/${actionId}/verify`,
@@ -308,16 +397,19 @@ export const managerApi = {
     return response.data;
   },
 
+  // Stage 3: Add Departmental Control
   createControl: async (id: number, payload: CreateControlPayload) => {
     const response = await apiClient.post(`/manager/incidents/${id}/controls`, payload);
     return response.data;
   },
 
+  // Stage 4: Submit Management Review
   submitReview: async (id: number, payload: ManagementReviewPayload) => {
     const response = await apiClient.post(`/manager/incidents/${id}/review`, payload);
     return response.data;
   },
 
+  // Stage 4: Controlled Final Closure Gate
   closeIncident: async (id: number, payload: CloseIncidentPayload) => {
     const response = await apiClient.post(`/manager/incidents/${id}/close`, payload);
     return response.data;

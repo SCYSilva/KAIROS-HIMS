@@ -13,9 +13,9 @@ import {
   ShieldCheck,
   X,
 } from 'lucide-react';
-import { useMyIncidents } from '../hooks/useIncidents';
+import { useMyIncidents } from '../hooks/useStaff';
 import { useAuthContext } from '../../auth/context/AuthContext';
-import type { StaffIncidentItem } from '../types/incident';
+import type { StaffIncidentItem } from '../types/staff.types';
 
 export const MyIncidentsPage: React.FC = () => {
   const navigate = useNavigate();

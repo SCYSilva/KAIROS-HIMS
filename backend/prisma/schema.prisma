@@ -87,6 +87,15 @@ model User {
   closedIncidents       Incident[]          @relation("IncidentCloser")
   auditLogs             IncidentAuditLog[]
 
+  // Structured Investigation Relations
+  leadInvestigations    Investigation[]           @relation("LeadInvestigator")
+  investigationTeams    InvestigationTeamMember[]
+
+  // Action Owner Module Relations
+  assignedActionItems   ActionItem[]              @relation("ActionItemOwner")
+  actionHistories       ActionHistory[]           @relation("ActionHistoryActor")
+  actionNotifications   ActionNotification[]      @relation("ActionNotificationUser")
+
   createdAt             DateTime   @default(now())
   updatedAt             DateTime   @updatedAt
 }
@@ -142,6 +151,14 @@ model Incident {
   managementReview  ManagementReview?
   disseminations    LessonsDissemination[]
   auditLogs         IncidentAuditLog[]
+
+  // Structured Investigation Link
+  investigationRecord  Investigation?
+  sourceRelationships  IncidentRelationship[] @relation("RelatedIncidentSource")
+  targetRelationships  IncidentRelationship[] @relation("RelatedIncidentTarget")
+
+  // Action Items (Decoupled Enterprise Action Governance)
+  actionItems          ActionItem[]
 
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
@@ -244,3 +261,257 @@ model IncidentAuditLog {
   changes    String?  // Serialized JSON of changed diffs
   createdAt  DateTime @default(now())
 }
+
+enum InvestigationStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REVISION_REQUESTED
+}
+
+enum InvestigationMethod {
+  FIVE_WHYS
+  FISHBONE
+  FAULT_TREE
+  TIMELINE_ANALYSIS
+  OTHER
+}
+
+enum AiFeedbackAction {
+  ACCEPTED
+  DISMISSED
+}
+
+model Investigation {
+  id                    Int                         @id @default(autoincrement())
+  incidentId            Int                         @unique
+  incident              Incident                    @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  leadInvestigatorId    Int
+  leadInvestigator      User                        @relation("LeadInvestigator", fields: [leadInvestigatorId], references: [id])
+  status                InvestigationStatus         @default(DRAFT)
+  startDate             DateTime?
+  endDate               DateTime?
+  method                InvestigationMethod?
+  methodOther           String?
+  findingsSummary       String?
+  rootCauseCategory     String?
+  rootCauseSubcategory  String?
+  rootCauseDescription  String?
+  rootCauseMethod        InvestigationMethod?
+  rootCauseDetail        String?
+  systemicIssue         Boolean                     @default(false)
+  revisionNumber        Int                         @default(1)
+  submittedAt           DateTime?
+  approvedAt            DateTime?
+  lockedAt              DateTime?
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+
+  teamMembers           InvestigationTeamMember[]
+  contributingFactors   InvestigationFactor[]
+  witnesses             InvestigationWitness[]
+  timeline              InvestigationTimelineEvent[]
+  evidence              InvestigationEvidence[]
+  aiFeedback            InvestigationAiFeedback[]
+
+  @@index([leadInvestigatorId, status])
+  @@index([startDate, endDate])
+}
+
+model InvestigationTeamMember {
+  investigationId Int
+  investigation   Investigation @relation(fields: [investigationId], references: [id], onDelete: Cascade)
+  userId          Int
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role            String        @default("TEAM_MEMBER")
+  addedAt         DateTime      @default(now())
+
+  @@id([investigationId, userId])
+  @@index([userId])
+}
+
+model InvestigationFactor {
+  id              Int           @id @default(autoincrement())
+  investigationId Int
+  investigation   Investigation @relation(fields: [investigationId], references: [id], onDelete: Cascade)
+  category        String
+  description     String
+  createdAt       DateTime      @default(now())
+
+  @@index([investigationId])
+}
+
+model InvestigationWitness {
+  id              Int           @id @default(autoincrement())
+  investigationId Int
+  investigation   Investigation @relation(fields: [investigationId], references: [id], onDelete: Cascade)
+  name            String
+  roleOrContact   String?
+  statement       String?
+  interviewedAt   DateTime?
+  createdAt       DateTime      @default(now())
+
+  @@index([investigationId])
+}
+
+model InvestigationTimelineEvent {
+  id              Int           @id @default(autoincrement())
+  investigationId Int
+  investigation   Investigation @relation(fields: [investigationId], references: [id], onDelete: Cascade)
+  occurredAt      DateTime
+  title           String
+  description     String
+  source          String?
+  createdAt       DateTime      @default(now())
+
+  @@index([investigationId, occurredAt])
+}
+
+model InvestigationEvidence {
+  id              Int           @id @default(autoincrement())
+  investigationId Int
+  investigation   Investigation @relation(fields: [investigationId], references: [id], onDelete: Cascade)
+  attachmentId    Int?
+  label           String
+  reference       String?
+  notes           String?
+  createdAt       DateTime      @default(now())
+
+  @@index([investigationId])
+}
+
+model IncidentRelationship {
+  id               Int      @id @default(autoincrement())
+  sourceIncidentId Int
+  sourceIncident   Incident @relation("RelatedIncidentSource", fields: [sourceIncidentId], references: [id], onDelete: Cascade)
+  targetIncidentId Int
+  targetIncident   Incident @relation("RelatedIncidentTarget", fields: [targetIncidentId], references: [id], onDelete: Cascade)
+  reason           String
+  createdAt        DateTime @default(now())
+
+  @@unique([sourceIncidentId, targetIncidentId])
+  @@index([targetIncidentId])
+}
+
+model InvestigationAiFeedback {
+  id              Int              @id @default(autoincrement())
+  investigationId Int
+  investigation   Investigation    @relation(fields: [investigationId], references: [id], onDelete: Cascade)
+  feature         String
+  resultKey       String
+  action          AiFeedbackAction
+  reason          String?
+  modelVersion    String
+  createdAt       DateTime         @default(now())
+
+  @@index([investigationId, feature])
+}
+
+// ==========================================
+// Action Owner & CAPA Governance Subsystem
+// ==========================================
+
+enum ActionStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ActionReviewStatus {
+  ACTIVE
+  RETURNED_FOR_REVISION
+  COMPLETED_PENDING_VERIFICATION
+  VERIFIED
+}
+
+enum ActionType {
+  IMMEDIATE
+  CORRECTIVE
+  PREVENTIVE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model ActionItem {
+  id                    Int                 @id @default(autoincrement())
+  incidentId            Int
+  incident              Incident            @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  ownerId               Int
+  owner                 User                @relation("ActionItemOwner", fields: [ownerId], references: [id])
+  title                 String
+  description           String
+  type                  ActionType          @default(CORRECTIVE)
+  priority              Priority            @default(MEDIUM)
+  dueDate               DateTime
+  status                ActionStatus        @default(OPEN)
+  reviewStatus          ActionReviewStatus  @default(ACTIVE)
+  progressNote          String?
+  verificationNotes     String?
+  managerReviewComment  String?
+  completedAt           DateTime?
+  effectiveness         String?
+  effectivenessScore    Int?
+  completionRiskScore   Float?
+  riskExplanation       Json?
+  
+  evidence              ActionEvidence[]
+  history               ActionHistory[]
+  notifications         ActionNotification[]
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  @@index([ownerId, status])
+  @@index([dueDate, status])
+  @@index([incidentId])
+}
+
+model ActionEvidence {
+  id            Int         @id @default(autoincrement())
+  actionItemId  Int
+  actionItem    ActionItem  @relation(fields: [actionItemId], references: [id], onDelete: Cascade)
+  fileName      String
+  fileType      String
+  fileSize      Int
+  filePath      String
+  uploadedAt    DateTime    @default(now())
+
+  @@index([actionItemId, uploadedAt])
+}
+
+model ActionHistory {
+  id            Int         @id @default(autoincrement())
+  actionItemId  Int
+  actionItem    ActionItem  @relation(fields: [actionItemId], references: [id], onDelete: Cascade)
+  actorId       Int?
+  actor         User?       @relation("ActionHistoryActor", fields: [actorId], references: [id], onDelete: SetNull)
+  eventType     String      // ASSIGNED, PROGRESS_UPDATED, SUBMITTED_FOR_VERIFICATION, RETURNED, VERIFIED, EVIDENCE_ADDED
+  fromStatus    String?
+  toStatus      String?
+  note          String?
+  createdAt     DateTime    @default(now())
+
+  @@index([actionItemId, createdAt])
+}
+
+model ActionNotification {
+  id           Int          @id @default(autoincrement())
+  actionItemId Int
+  actionItem   ActionItem   @relation(fields: [actionItemId], references: [id], onDelete: Cascade)
+  userId       Int
+  user         User         @relation("ActionNotificationUser", fields: [userId], references: [id], onDelete: Cascade)
+  type         String       // DUE_SOON, OVERDUE, RETURNED, VERIFIED
+  title        String
+  message      String
+  readAt       DateTime?
+  createdAt    DateTime     @default(now())
+
+  @@unique([actionItemId, userId, type])
+  @@index([userId, readAt, createdAt])
+}
+

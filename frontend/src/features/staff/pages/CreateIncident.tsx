@@ -6,9 +6,9 @@ import {
   useComplianceAssist,
   useSaveDraft,
   useSubmitStaffIncident,
-} from '../hooks/useIncidents';
+} from '../hooks/useStaff';
 import { useAuthContext } from '../../auth/context/AuthContext';
-import type { StaffAssistResult } from '../types/incident';
+import type { StaffAssistResult } from '../types/staff.types';
 import {
   AlertCircle,
   ArrowLeft,

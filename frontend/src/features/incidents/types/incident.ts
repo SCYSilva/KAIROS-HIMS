@@ -1,4 +1,16 @@
-// 1. Define the possible status values exactly as they are in the Backend Prisma Enum
+/**
+ * Core Clinical Incident Domain Types
+ *
+ * Single source of truth for the primary Incident entity across all roles in KAIROS HIMS:
+ * - IncidentStatus: Enum mirroring Prisma IncidentStatus
+ * - Incident: Complete clinical incident record schema
+ * - User: Essential user model representation
+ * - Department: Hospital department reference model
+ * - IncidentAttachment: Secure file attachment metadata
+ * - ApiResponse: Generic typed HTTP response envelope
+ */
+
+// 1. Possible status values matching Backend Prisma Enum
 export type IncidentStatus =
   | 'OPEN'
   | 'ACCEPTED'
@@ -8,7 +20,7 @@ export type IncidentStatus =
   | 'UNDER_REVIEW'
   | 'CLOSED';
 
-// 2. Define a minimal User interface for the related data (reporter, investigator, etc.)
+// 2. User model for clinical roles (reporter, investigator, action owner, verifier)
 export interface User {
   id: number;
   name: string;
@@ -17,11 +29,13 @@ export interface User {
   departmentId?: number;
 }
 
+// 3. Hospital Department model
 export interface Department {
   id: number;
   name: string;
 }
 
+// 4. Clinical Evidence & Attachment metadata
 export interface IncidentAttachment {
   id: number;
   fileName: string;
@@ -29,7 +43,7 @@ export interface IncidentAttachment {
   fileType: string;
 }
 
-// 3. Define the main Incident interface matching the Backend response
+// 5. Main Incident interface matching Backend response
 export interface Incident {
   id: number;
   title: string;
@@ -45,6 +59,9 @@ export interface Incident {
 
   rootCause?: string;
   rootCauseCategory?: string;
+  investigationFindings?: string;
+  investigationReviewStatus?: string;
+  investigationReviewComment?: string;
   correctiveAction?: string;
 
   departmentId: number;
@@ -63,85 +80,9 @@ export interface Incident {
   attachments?: IncidentAttachment[];
 }
 
-// 4. Define a generic API Response interface to match our Backend standard response
+// 6. Generic API Response envelope matching Backend standards
 export interface ApiResponse<T> {
   success: boolean;
   message: string;
   data: T;
 }
-
-export interface ChartDataPoint {
-  name: string;
-  value: number;
-}
-
-export interface DepartmentStats {
-  summary: {
-    total: number;
-    open: number;
-    critical: number;
-    closed: number;
-  };
-  charts: {
-    byStatus: ChartDataPoint[];
-    bySeverity: ChartDataPoint[];
-  };
-}
-
-export type DepartmentAnalytics = DepartmentStats;
-
-export interface ComplianceCheckItem {
-  id: string;
-  label: string;
-  passed: boolean;
-  tip?: string;
-}
-
-export interface StaffAssistResult {
-  completenessScore: number;
-  completenessLevel: string;
-  suggestedCategory: string;
-  suggestedSubCategory: string;
-  suggestedSeverity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-  confidence: number;
-  similarIncidentsCount: number;
-  similaritySummary: string;
-  complianceChecks: ComplianceCheckItem[];
-}
-
-export interface StaffConfigData {
-  departments: Department[];
-  categories: Record<string, string[]>;
-  severities: string[];
-}
-
-export interface StaffIncidentItem {
-  id: number;
-  referenceId: string;
-  title: string;
-  category: string;
-  subcategory?: string;
-  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | string;
-  status: IncidentStatus;
-  reportedAt: string;
-  location: string;
-  department?: {
-    id?: number;
-    name: string;
-  };
-  rejectionReason?: string;
-  description?: string;
-}
-
-export interface StaffIncidentsSummary {
-  total: number;
-  open: number;
-  inProgress: number;
-  closed: number;
-}
-
-export interface StaffIncidentsResponseData {
-  summary: StaffIncidentsSummary;
-  items: StaffIncidentItem[];
-}
-

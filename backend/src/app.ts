@@ -8,6 +8,8 @@ import { globalErrorHandler } from './shared/middleware/errorHandler.middleware'
 import departmentRoutes from './modules/departments/departments.routes';
 import staffRoutes from './modules/staff/staff.routes';
 import managerRoutes from './modules/manager/manager.routes';
+import investigationRoutes from './modules/investigations/investigation.routes';
+import actionOwnerRoutes from './modules/action-owner/actionOwner.routes';
 
 const app = express();
 
@@ -35,6 +37,7 @@ Routes
 */
 
 // Route mounting
+app.use('/api/investigations', investigationRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/incidents', incidentRoutes);
 app.use('/api/v1/incidents', incidentRoutes);
@@ -43,6 +46,7 @@ app.use('/api/departments', departmentRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/manager', managerRoutes);
+app.use('/api/action-owner', actionOwnerRoutes);
 
 // Health Check Routes
 app.get('/', (req, res) => {
