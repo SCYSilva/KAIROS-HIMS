@@ -1,5 +1,12 @@
+// backend/src/modules/incidents/incident.validator.ts
+
 import { z } from "zod";
 
+/**
+ * Validation schema for formal clinical incident submissions.
+ * Enforces mandatory title, clinical description, severity level,
+ * primary category, physical location, and target hospital department ID.
+ */
 export const incidentSchema = z.object({
   title: z
     .string()
@@ -27,55 +34,13 @@ export const incidentSchema = z.object({
   departmentId: z.coerce.number()
 });
 
-// 1. Reject Incident Schema
-export const rejectIncidentSchema = z.object({
-  body: z.object({
-    reason: z.string()
-      .min(10, "Rejection reason must be at least 10 characters long.")
-      .max(500, "Rejection reason cannot exceed 500 characters.")
-      .trim(),
-  }),
-});
-
-export type RejectIncidentInput = z.infer<typeof rejectIncidentSchema>['body'];
-
-// 2. Assign Investigator Schema
-export const assignInvestigatorSchema = z.object({
-  body: z.object({
-    investigatorId: z.number()
-      .int("Investigator ID must be an integer.")
-      .positive("Investigator ID must be a positive number."),
-  }),
-});
-
-export type AssignInvestigatorInput = z.infer<typeof assignInvestigatorSchema>['body'];
-
-// 3. Assign Action Owner Schema
-export const assignActionOwnerSchema = z.object({
-  body: z.object({
-    actionOwnerId: z.number()
-      .int("Action Owner ID must be an integer.")
-      .positive("Action Owner ID must be a positive number."),
-  }),
-});
-
-export type AssignActionOwnerInput = z.infer<typeof assignActionOwnerSchema>['body'];
-
-// 4. Department Incidents Params Schema
+/**
+ * Validation schema for department incident lookup route parameters.
+ * Validates that departmentId in URL param (/department/:departmentId) is a positive integer.
+ */
 export const departmentParamsSchema = z.object({
   departmentId: z
     .string()
     .regex(/^[1-9]\d*$/, "Department ID must be a positive integer.")
     .transform(Number),
-});
-
-// 5. Root Cause Schema
-export const rootCauseSchema = z.object({
-  rootCause: z
-    .string()
-    .min(20, "Root cause must be at least 20 characters long"),
-
-  rootCauseCategory: z
-    .string()
-    .min(1, "Root cause category is required"),
 });
