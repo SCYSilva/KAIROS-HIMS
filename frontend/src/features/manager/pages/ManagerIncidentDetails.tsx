@@ -692,18 +692,24 @@ export const ManagerIncidentDetails: React.FC = () => {
                 >
                   <option value="">-- Select Active Department Investigator --</option>
                   {team
-                    .filter((u) => u.role === 'INVESTIGATOR' || u.role === 'STAFF')
+                    .filter((u) => u.role === 'INVESTIGATOR')
                     .map((user) => (
                       <option key={user.id} value={user.id}>
                         {user.name} ({user.role}) - {user.email}
                       </option>
                     ))}
                 </select>
+                {team.filter((u) => u.role === 'INVESTIGATOR').length === 0 && (
+                  <p className="text-[11px] text-amber-600 mt-1.5 flex items-center gap-1">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    No active investigators found in this department. Please assign an investigator in My Team.
+                  </p>
+                )}
               </div>
               <button
                 onClick={handleAssignInvestigator}
-                disabled={isSubmitting}
-                className="px-4 py-2.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 shadow-sm"
+                disabled={isSubmitting || !selectedInvestigatorId}
+                className="px-4 py-2.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 shadow-sm disabled:opacity-50"
               >
                 Assign & Begin Investigation
               </button>

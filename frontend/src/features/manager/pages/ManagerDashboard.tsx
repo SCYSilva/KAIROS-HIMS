@@ -94,17 +94,17 @@ export const ManagerDashboard: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-12">
       {/* ── TOP BANNER: Command Centre Identity ────────────────────────────── */}
-      <div className="bg-slate-900 text-white rounded-xl p-6 shadow-sm border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold tracking-widest uppercase bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded border border-indigo-500/30">
+            <span className="text-[10px] font-bold tracking-widest uppercase bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded border border-indigo-200">
               Department Command Centre
             </span>
-            <span className="text-xs text-slate-400">• Live Operational Governance</span>
+            <span className="text-xs text-slate-400 font-medium">• Live Operational Governance</span>
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-white">Manager Dashboard</h1>
-          <p className="text-xs text-slate-300">
-            Welcome back, <strong className="text-white">Dr. Manager</strong>. Priorities requiring your decision are highlighted below.
+          <h1 className="text-2xl font-black tracking-tight text-slate-900">Manager Dashboard</h1>
+          <p className="text-xs text-slate-500">
+            Welcome back, <strong className="text-slate-800">Dr. Manager</strong>. Priorities requiring your decision are highlighted below.
           </p>
         </div>
 
@@ -113,21 +113,21 @@ export const ManagerDashboard: React.FC = () => {
           <button
             onClick={() => fetchDashboardMetrics(true)}
             disabled={isRefreshing}
-            className="px-3.5 py-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
+            className="px-3.5 py-2 text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-indigo-600' : 'text-slate-500'}`} />
             Refresh
           </button>
           <button
             onClick={() => toast.success('Exporting clinical safety report...')}
-            className="px-3.5 py-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
+            className="px-3.5 py-2 text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
           >
-            <Download className="w-3.5 h-3.5" />
+            <Download className="w-3.5 h-3.5 text-slate-500" />
             Export
           </button>
           <button
             onClick={() => navigate('/incidents')}
-            className="px-4 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
+            className="px-4 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
           >
             Review Queue <ArrowRight className="w-3.5 h-3.5" />
           </button>
