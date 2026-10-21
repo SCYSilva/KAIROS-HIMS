@@ -1,6 +1,6 @@
 // backend/src/app.ts
 
-import express from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
 import incidentRoutes from './modules/incidents/incident.routes';
 import authRoutes from './modules/auth/auth.routes';
@@ -9,6 +9,7 @@ import staffRoutes from './modules/staff/staff.routes';
 import managerRoutes from './modules/manager/manager.routes';
 import investigationRoutes from './modules/investigations/investigation.routes';
 import actionOwnerRoutes from './modules/action-owner/actionOwner.routes';
+import adminRoutes from './modules/admin/admin.routes';
 
 // Shared Services & Middleware Imports (Replaces standalone departments and users modules)
 import { getAllDepartments } from './shared/services/department.service';
@@ -49,6 +50,7 @@ app.use('/api/manager', managerRoutes);
 app.use('/api/investigations', investigationRoutes);
 app.use('/api/action-owner', actionOwnerRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Core Incident Entity Routes (Canonical & Legacy alias)
 app.use('/api/incidents', incidentRoutes);
@@ -69,7 +71,7 @@ Shared Cross-Cutting Endpoints
 app.get(
   '/api/departments',
   authenticate,
-  catchAsync(async (_req, res) => {
+  catchAsync(async (_req: Request, res: Response) => {
     const departments = await getAllDepartments();
     return res.status(200).json({
       success: true,
@@ -87,7 +89,7 @@ app.get(
   '/api/users/role/:role',
   authenticate,
   authorizeRoles('MANAGER', 'ADMIN'),
-  catchAsync(async (req, res) => {
+  catchAsync(async (req: Request<{ role: string }>, res: Response) => {
     const users = await getUsersByRole(req.params.role);
     return res.status(200).json({
       success: true,
@@ -102,14 +104,14 @@ Health Check Endpoints
 ==========================================
 */
 
-app.get('/', (_req, res) => {
+app.get('/', (_req: Request, res: Response) => {
   res.json({
     success: true,
     message: 'KAIROS Backend is Running',
   });
 });
 
-app.get('/health', (_req, res) => {
+app.get('/health', (_req: Request, res: Response) => {
   res.status(200).json({ status: 'UP', message: 'KAIROS HIMS Backend is running' });
 });
 
