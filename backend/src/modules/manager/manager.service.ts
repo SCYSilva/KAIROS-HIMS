@@ -7,25 +7,53 @@ export class ManagerService {
   /**
    * High-Level Executive Dashboard Metrics for the Department
    */
+  /**
+   * Aggregated Executive Command Centre Dashboard for Department Manager
+   * Produces real-time Tier 1 KPIs, Tier 2 Attention Queue & Department Health, and Tier 3 Overdue Actions
+   */
   async getDashboard(departmentId: number) {
+    const now = new Date();
+
+    // Execute parallel database queries via Promise.all for high-performance aggregation
     const [
       totalCount,
       openCount,
-      investigatingCount,
-      pendingActionCount,
-      underReviewCount,
+      unassignedCount,
+      findingsToApproveCount,
+      awaitingVerificationCount,
+      overdueActionsCount,
+      highRiskOpenCount,
       closedCount,
-      criticalCount,
-      unverifiedActionsCount,
-      recentIncidents,
+      activeIncidentsCount,
+      oldestOpenIncident,
+      totalCapasCount,
+      completedCapasCount,
+      attentionTriageList,
+      attentionFindingsList,
+      attentionVerificationList,
+      overdueCapasList,
     ] = await Promise.all([
+      // 1. Total incidents in department
       prisma.incident.count({ where: { departmentId } }),
+
+      // 2. Triage pending incidents (OPEN)
       prisma.incident.count({ where: { departmentId, status: 'OPEN' } }),
-      prisma.incident.count({ where: { departmentId, status: 'INVESTIGATING' } }),
-      prisma.incident.count({ where: { departmentId, status: 'PENDING_ACTION' } }),
-      prisma.incident.count({ where: { departmentId, status: 'UNDER_REVIEW' } }),
-      prisma.incident.count({ where: { departmentId, status: 'CLOSED' } }),
-      prisma.incident.count({ where: { departmentId, severity: 'CRITICAL' } }),
+
+      // 3. Accepted incidents without an assigned investigator
+      prisma.incident.count({
+        where: { departmentId, status: 'ACCEPTED', investigatorId: null },
+      }),
+
+      // 4. Investigations awaiting manager findings review
+      prisma.incident.count({
+        where: {
+          departmentId,
+          status: 'INVESTIGATING',
+          investigationReviewStatus: 'PENDING',
+        },
+      }),
+
+      // 5. Completed CAPA actions awaiting manager verification
       prisma.capaAction.count({
         where: {
           incident: { departmentId },
@@ -33,29 +61,221 @@ export class ManagerService {
           isVerified: false,
         },
       }),
+
+      // 6. Overdue CAPA actions
+      prisma.capaAction.count({
+        where: {
+          incident: { departmentId },
+          dueDate: { lt: now },
+          status: { not: 'COMPLETED' },
+        },
+      }),
+
+      // 7. Unresolved high or critical severity incidents
+      prisma.incident.count({
+        where: {
+          departmentId,
+          severity: { in: ['HIGH', 'CRITICAL'] },
+          status: { notIn: ['CLOSED', 'REJECTED'] },
+        },
+      }),
+
+      // 8. Total closed incidents
+      prisma.incident.count({ where: { departmentId, status: 'CLOSED' } }),
+
+      // 9. Total active (ongoing) incidents
+      prisma.incident.count({
+        where: { departmentId, status: { notIn: ['CLOSED', 'REJECTED'] } },
+      }),
+
+      // 10. Oldest unresolved incident for SLA duration calculation
+      prisma.incident.findFirst({
+        where: { departmentId, status: { notIn: ['CLOSED', 'REJECTED'] } },
+        orderBy: { createdAt: 'asc' },
+        select: { createdAt: true },
+      }),
+
+      // 11. Total CAPAs created in department
+      prisma.capaAction.count({ where: { incident: { departmentId } } }),
+
+      // 12. Completed CAPAs count
+      prisma.capaAction.count({
+        where: { incident: { departmentId }, status: 'COMPLETED' },
+      }),
+
+      // 13. Top 5 pending triage incidents for Attention Queue
       prisma.incident.findMany({
-        where: { departmentId },
+        where: { departmentId, status: 'OPEN' },
+        orderBy: { createdAt: 'asc' },
         take: 5,
+        select: { id: true, title: true, severity: true, createdAt: true },
+      }),
+
+      // 14. Top 5 investigations awaiting review for Attention Queue
+      prisma.incident.findMany({
+        where: {
+          departmentId,
+          status: 'INVESTIGATING',
+          investigationReviewStatus: 'PENDING',
+        },
         orderBy: { updatedAt: 'desc' },
-        include: {
-          reporter: { select: { id: true, name: true, email: true } },
-          investigator: { select: { id: true, name: true } },
+        take: 5,
+        select: {
+          id: true,
+          title: true,
+          severity: true,
+          investigator: { select: { name: true } },
+        },
+      }),
+
+      // 15. Top 5 completed CAPAs awaiting verification for Attention Queue
+      prisma.capaAction.findMany({
+        where: {
+          incident: { departmentId },
+          status: 'COMPLETED',
+          isVerified: false,
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 5,
+        select: {
+          id: true,
+          title: true,
+          priority: true,
+          incidentId: true,
+          incident: { select: { severity: true } },
+          actionOwner: { select: { name: true } },
+        },
+      }),
+
+      // 16. Overdue CAPAs for Workbench and Attention Queue
+      prisma.capaAction.findMany({
+        where: {
+          incident: { departmentId },
+          dueDate: { lt: now },
+          status: { not: 'COMPLETED' },
+        },
+        orderBy: { dueDate: 'asc' },
+        take: 10,
+        select: {
+          id: true,
+          title: true,
+          priority: true,
+          dueDate: true,
+          incidentId: true,
+          incident: { select: { title: true, severity: true } },
+          actionOwner: { select: { name: true, email: true } },
         },
       }),
     ]);
 
+    // Tier 1: Top Decision Counters (KPIs)
+    const kpis = {
+      awaitingDecisionCount: openCount,
+      unassignedCount,
+      findingsToApproveCount,
+      awaitingVerificationCount,
+      overdueActionsCount,
+      highRiskOpenCount,
+    };
+
+    // Tier 2: Priority Attention Queue items
+    const attentionItems = [
+      ...overdueCapasList.slice(0, 3).map((item) => ({
+        id: item.id,
+        incidentId: item.incidentId,
+        title: item.title,
+        type: 'ACTION_OVERDUE' as const,
+        severity: item.incident.severity,
+        priority: item.priority,
+        assigneeName: item.actionOwner?.name ?? 'Unassigned',
+        dueDate: item.dueDate.toISOString(),
+        daysOverdue: Math.max(
+          1,
+          Math.floor((now.getTime() - new Date(item.dueDate).getTime()) / (1000 * 60 * 60 * 24))
+        ),
+      })),
+      ...attentionTriageList.map((item) => ({
+        id: item.id,
+        incidentId: item.id,
+        title: item.title,
+        type: 'TRIAGE_PENDING' as const,
+        severity: item.severity,
+      })),
+      ...attentionFindingsList.map((item) => ({
+        id: item.id,
+        incidentId: item.id,
+        title: item.title,
+        type: 'FINDINGS_REVIEW' as const,
+        severity: item.severity,
+        assigneeName: item.investigator?.name ?? 'Unassigned',
+      })),
+      ...attentionVerificationList.map((item) => ({
+        id: item.id,
+        incidentId: item.incidentId,
+        title: item.title,
+        type: 'VERIFICATION_PENDING' as const,
+        severity: item.incident.severity,
+        priority: item.priority,
+        assigneeName: item.actionOwner?.name ?? 'Unassigned',
+      })),
+    ];
+
+    // Tier 2: Department Health Metrics
+    const closureRatePercentage =
+      totalCount > 0 ? Math.round((closedCount / totalCount) * 100) : 100;
+
+    const actionCompletionPercentage =
+      totalCapasCount > 0 ? Math.round((completedCapasCount / totalCapasCount) * 100) : 100;
+
+    const activeCapasCount = totalCapasCount - completedCapasCount;
+    const slaCompliancePercentage =
+      activeCapasCount > 0
+        ? Math.max(
+            0,
+            Math.round(((activeCapasCount - overdueActionsCount) / activeCapasCount) * 100)
+          )
+        : 100;
+
+    const oldestOpenIncidentDays = oldestOpenIncident
+      ? Math.max(
+          0,
+          Math.floor(
+            (now.getTime() - new Date(oldestOpenIncident.createdAt).getTime()) /
+              (1000 * 60 * 60 * 24)
+          )
+        )
+      : 0;
+
+    const departmentHealth = {
+      closureRatePercentage,
+      actionCompletionPercentage,
+      slaCompliancePercentage,
+      openIncidentsCount: activeIncidentsCount,
+      oldestOpenIncidentDays,
+    };
+
+    // Tier 3: Overdue Actions Workbench
+    const overdueActions = overdueCapasList.map((item) => ({
+      actionId: item.id,
+      incidentId: item.incidentId,
+      incidentTitle: item.incident.title,
+      actionTitle: item.title,
+      assignedOwnerName: item.actionOwner?.name ?? 'Unassigned',
+      assignedOwnerEmail: item.actionOwner?.email ?? '',
+      severity: item.incident.severity,
+      priority: item.priority,
+      dueDate: item.dueDate.toISOString(),
+      daysOverdue: Math.max(
+        1,
+        Math.floor((now.getTime() - new Date(item.dueDate).getTime()) / (1000 * 60 * 60 * 24))
+      ),
+    }));
+
     return {
-      metrics: {
-        total: totalCount,
-        open: openCount,
-        investigating: investigatingCount,
-        pendingAction: pendingActionCount,
-        underReview: underReviewCount,
-        closed: closedCount,
-        critical: criticalCount,
-        unverifiedActions: unverifiedActionsCount,
-      },
-      recentIncidents,
+      kpis,
+      attentionItems,
+      departmentHealth,
+      overdueActions,
     };
   }
 
@@ -240,8 +460,9 @@ export class ManagerService {
     return incident;
   }
 
-  /**
-   * Stage 1: Triage Decision (Accept, Request Revision, Reject)
+    /**
+   * Stage 1: Triage Decision Gate (Accept, Request Revision, Reject)
+   * Enforces status validation, atomic status transition, and clinical audit logging
    */
   async triageIncident(
     incidentId: number,
@@ -250,15 +471,19 @@ export class ManagerService {
     decision: 'ACCEPT' | 'REVISE' | 'REJECT',
     rationale: string
   ) {
+    // 1. Verify incident exists within the manager's authorized department
     const incident = await prisma.incident.findFirst({
       where: { id: incidentId, departmentId },
     });
 
     if (!incident) throw new AppError('Incident not found in your department.', 404);
+    
+    // 2. Triage can only be executed when incident is in 'OPEN' state
     if (incident.status !== 'OPEN') {
       throw new AppError(`Cannot triage incident in current status: ${incident.status}`, 400);
     }
 
+    // 3. Execute atomic transition and immutable audit logging inside a transaction
     return await prisma.$transaction(async (tx) => {
       let nextStatus = incident.status;
       let rejectionReason: string | null = null;
@@ -269,10 +494,10 @@ export class ManagerService {
         nextStatus = 'REJECTED';
         rejectionReason = rationale;
       } else {
-        // REVISE leaves status as OPEN or marks review request in logs
         nextStatus = 'OPEN';
       }
 
+      // Update incident record
       const updated = await tx.incident.update({
         where: { id: incidentId },
         data: {
@@ -281,6 +506,7 @@ export class ManagerService {
         },
       });
 
+      // Write immutable clinical audit record with rationale
       await tx.incidentAuditLog.create({
         data: {
           incidentId,
@@ -296,7 +522,8 @@ export class ManagerService {
   }
 
   /**
-   * Stage 1: Audited Record Correction (Allows Manager to correct classification)
+   * Stage 1: Audited Record Classification Correction
+   * Allows manager to rectify misclassified clinical severity or metadata with audit tracking
    */
   async correctRecord(
     incidentId: number,
@@ -316,6 +543,7 @@ export class ManagerService {
 
     if (!incident) throw new AppError('Incident not found in your department.', 404);
 
+    // Track before-and-after differences for audit transparency
     const changesRecorded: Record<string, { from: any; to: any }> = {};
     if (data.title && data.title !== incident.title) {
       changesRecorded.title = { from: incident.title, to: data.title };
@@ -356,7 +584,8 @@ export class ManagerService {
   }
 
   /**
-   * Stage 2: Assign Lead Investigator
+   * Stage 2: Assign Lead Investigator (Strict Role-Guarded Delegation)
+   * Validates investigator role, updates incident state, and initializes structured investigation record
    */
   async assignInvestigator(
     incidentId: number,
@@ -371,8 +600,14 @@ export class ManagerService {
 
     if (!incident) throw new AppError('Incident not found in your department.', 404);
     if (!investigator) throw new AppError('Investigator not found in this department.', 404);
+    
+    // Strict clinical role guard: Only designated INVESTIGATOR role can be assigned
+    if (investigator.role !== 'INVESTIGATOR') {
+      throw new AppError('Only users with the INVESTIGATOR role can be assigned as Lead Investigator.', 400);
+    }
 
     return await prisma.$transaction(async (tx) => {
+      // Progress incident to INVESTIGATING status
       const updated = await tx.incident.update({
         where: { id: incidentId },
         data: {
@@ -382,7 +617,7 @@ export class ManagerService {
         },
       });
 
-      // Ensure structured investigation record is initialized
+      // Ensure structured Investigation entity exists and is linked
       await tx.investigation.upsert({
         where: { incidentId },
         create: {
@@ -395,6 +630,7 @@ export class ManagerService {
         },
       });
 
+      // Immutable audit entry for delegation accountability
       await tx.incidentAuditLog.create({
         data: {
           incidentId,
