@@ -1667,240 +1667,452 @@ export const ManagerIncidentDetails: React.FC = () => {
 
 
       {/* ── TAB 4: REVIEW & CLOSURE (THE GOVERNANCE GATE) ───────────────────── */}
-      {/* Three sections:
-           A) Management review sign-off form (Gate 3 dependency)
-           B) Lessons-learned dissemination scheduling (optional, part of Section A form)
-           C) Controlled clinical closure gate – visual gate indicators + final close button */}
+      {/* Three clinical governance sections:
+           Section A: Management Review Sign-off Form (Gate 3 prerequisite)
+           Section B: Lessons Learned Dissemination Scheduling (Institutional Learning)
+           Section C: Controlled Clinical Closure Gate (3-Gate validation & Final Closure) */}
       {activeTab === 'closure' && (
         <div className="space-y-6">
-          {/* Section A: Management Review Sign-off Form
-               Captures review outcome, lessons learned, outcome comments, and follow-up plan.
-               Also includes the optional dissemination scheduling sub-section (Section B). */}
-          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-slate-800">Section A: Management Review Sign-off</h3>
-            <form onSubmit={handleSubmitReview} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+          {/* ── SECTION A: MANAGEMENT REVIEW SIGN-OFF ────────────────────────── */}
+          <div className="bg-white border border-slate-200/90 rounded-xl p-6 shadow-xs space-y-5">
+            {/* Clinical Section Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-2">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-[#1E2B58]/10 text-[#1E2B58] flex items-center justify-center font-bold shadow-xs">
+                  <ClipboardList className="w-5 h-5 text-[#1E2B58]" />
+                </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Review Outcome</label>
+                  <h3 className="text-sm font-bold text-slate-800 tracking-tight">
+                    Section A: Management Review Sign-off
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Formal departmental leadership evaluation, lessons learned consolidation, and follow-up audit planning.
+                  </p>
+                </div>
+              </div>
+              <span className="self-start sm:self-auto inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200/80">
+                Gate 3 Prerequisite
+              </span>
+            </div>
+
+            {/* Existing Approved Review Summary Card (Displays if previously signed off) */}
+            {incident.managementReview && (
+              <div className="bg-slate-50/80 border border-slate-200 rounded-lg p-4 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                        incident.managementReview.outcome === 'APPROVED'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-amber-50 text-amber-700 border-amber-200'
+                      }`}
+                    >
+                      {incident.managementReview.outcome === 'APPROVED' ? (
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                      ) : (
+                        <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                      )}
+                      Review Outcome: {incident.managementReview.outcome}
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      Reviewed by <strong className="text-slate-700">{incident.managementReview.reviewedBy?.name || 'Manager'}</strong>
+                    </span>
+                  </div>
+                  {incident.managementReview.reviewedAt && (
+                    <span className="text-[11px] text-slate-400">
+                      {new Date(incident.managementReview.reviewedAt).toLocaleDateString(undefined, {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs pt-1 border-t border-slate-200/60">
+                  <div>
+                    <span className="font-semibold text-slate-600">Lessons Learned:</span>
+                    <p className="text-slate-800 mt-0.5 italic">"{incident.managementReview.lessonsLearned}"</p>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-slate-600">Follow-up Monitoring:</span>
+                    <p className="text-slate-800 mt-0.5">{incident.managementReview.followUpMonitoring}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Management Review Form */}
+            <form onSubmit={handleSubmitReview} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                {/* Review Outcome Dropdown */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1.5">
+                    Review Outcome Decision <span className="text-rose-500">*</span>
+                  </label>
                   <select
                     value={reviewForm.outcome}
                     onChange={(e) =>
                       setReviewForm({ ...reviewForm, outcome: e.target.value as ReviewOutcome })
                     }
-                    className="w-full p-2 border border-slate-300 rounded bg-white"
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1E2B58]/20 focus:border-[#1E2B58] transition-all"
                   >
-                    <option value="APPROVED">Approved (Ready for Gate Validation)</option>
-                    <option value="REVISION_REQUIRED">Revision Required</option>
+                    <option value="APPROVED">Approved (Satisfies Closure Gate 3 Validation)</option>
+                    <option value="REVISION_REQUIRED">Revision Required (Remand for Additional Remediation)</option>
                   </select>
                 </div>
+
+                {/* Follow-up Monitoring */}
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Follow-up Monitoring Details
+                  <label className="block font-semibold text-slate-700 mb-1.5">
+                    Follow-up Clinical Monitoring Plan <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. 30-day clinical audit follow-up"
+                    placeholder="e.g. 30-day clinical audit follow-up on medication reconciliation"
                     value={reviewForm.followUpMonitoring}
                     onChange={(e) =>
                       setReviewForm({ ...reviewForm, followUpMonitoring: e.target.value })
                     }
-                    className="w-full p-2 border border-slate-300 rounded"
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E2B58]/20 focus:border-[#1E2B58] transition-all"
+                    required
+                  />
+                </div>
+
+                {/* Lessons Learned */}
+                <div className="md:col-span-2">
+                  <label className="block font-semibold text-slate-700 mb-1.5">
+                    Lessons Learned (Clinical Insights) <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="Document core clinical insights to guide institutional knowledge and prevent cross-ward recurrence..."
+                    value={reviewForm.lessonsLearned}
+                    onChange={(e) => setReviewForm({ ...reviewForm, lessonsLearned: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E2B58]/20 focus:border-[#1E2B58] transition-all leading-relaxed"
+                    required
+                  />
+                </div>
+
+                {/* Outcome Comments */}
+                <div className="md:col-span-2">
+                  <label className="block font-semibold text-slate-700 mb-1.5">
+                    Management Assessment Commentary <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="Formal executive commentary confirming investigation thoroughness and corrective adequacy..."
+                    value={reviewForm.outcomeComments}
+                    onChange={(e) => setReviewForm({ ...reviewForm, outcomeComments: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E2B58]/20 focus:border-[#1E2B58] transition-all leading-relaxed"
                     required
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Lessons Learned (Clinical Insights)
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="Document key clinical lessons learned..."
-                  value={reviewForm.lessonsLearned}
-                  onChange={(e) => setReviewForm({ ...reviewForm, lessonsLearned: e.target.value })}
-                  className="w-full p-2 border border-slate-300 rounded"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Outcome Comments</label>
-                <textarea
-                  rows={2}
-                  placeholder="Formal management assessment commentary..."
-                  value={reviewForm.outcomeComments}
-                  onChange={(e) => setReviewForm({ ...reviewForm, outcomeComments: e.target.value })}
-                  className="w-full p-2 border border-slate-300 rounded"
-                  required
-                />
-              </div>
-
-              {/* Section B: Lessons Learned Dissemination (nested inside the review form)
-                   Optional – if audience is filled, a dissemination record is created on submit */}
-              <div className="border-t border-slate-100 pt-4">
-                <h4 className="font-semibold text-slate-800 mb-2">
-                  Section B: Lessons Learned Dissemination (Optional Schedule)
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* ── SECTION B: LESSONS LEARNED DISSEMINATION ─────────────────── */}
+              <div className="border-t border-slate-100 pt-4 space-y-3">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-800 tracking-tight">
+                    Section B: Lessons Learned Dissemination (Optional Institutional Rollout)
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Schedule multi-disciplinary safety briefings across wards or nursing shifts.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                   <div>
-                    <label className="block font-medium text-slate-700 mb-1">Audience</label>
+                    <label className="block font-semibold text-slate-700 mb-1.5">Target Audience</label>
                     <input
                       type="text"
-                      placeholder="e.g. All Surgical & Nursing Staff"
+                      placeholder="e.g. All Surgical & Nursing Staff, Pharmacy Unit"
                       value={reviewForm.audience}
                       onChange={(e) => setReviewForm({ ...reviewForm, audience: e.target.value })}
-                      className="w-full p-2 border border-slate-300 rounded"
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E2B58]/20 focus:border-[#1E2B58] transition-all"
                     />
                   </div>
                   <div>
-                    <label className="block font-medium text-slate-700 mb-1">Scheduled Date</label>
+                    <label className="block font-semibold text-slate-700 mb-1.5">Scheduled Briefing Date</label>
                     <input
                       type="date"
                       value={reviewForm.scheduledDate}
                       onChange={(e) => setReviewForm({ ...reviewForm, scheduledDate: e.target.value })}
-                      className="w-full p-2 border border-slate-300 rounded"
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1E2B58]/20 focus:border-[#1E2B58] transition-all"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="flex justify-end">
+              {/* Submit Management Review Button */}
+              <div className="flex justify-end pt-2 border-t border-slate-100">
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded font-medium hover:bg-indigo-700"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#1E2B58] text-white text-xs font-semibold rounded-lg hover:bg-[#162144] active:bg-[#0f172a] disabled:opacity-50 transition-colors shadow-xs"
                 >
-                  Submit Management Review
+                  <CheckSquare className="w-3.5 h-3.5 text-emerald-400" />
+                  {isSubmitting ? 'Recording Review...' : 'Submit Management Review'}
                 </button>
               </div>
             </form>
           </div>
 
-          {/* Section C: The Controlled Clinical Closure Gate – the most critical UI block.
-               Displays three coloured gate cards (Gate 1, 2, 3) that turn green when each
-               prerequisite is satisfied. The "Validate and Close" button is only enabled
-               when ALL THREE gates are met AND the closure summary has ≥ 20 characters.   */}
-          <div className="bg-slate-900 text-white rounded-xl p-6 shadow-md space-y-6">
-            <div className="flex items-center gap-2">
-              <Lock className="w-5 h-5 text-indigo-400" />
-              <h3 className="text-base font-bold text-white">Section C: Controlled Clinical Closure Gate</h3>
-            </div>
-            <p className="text-xs text-slate-300">
-              In accordance with hospital clinical governance rules, this incident cannot be closed until all three gates are fully satisfied.
-            </p>
 
-            {/* Visual Gate Indicator Cards – each card is green (satisfied) or grey (not satisfied) */}
+          {/* ── SECTION C: CONTROLLED CLINICAL CLOSURE GATE ─────────────────── */}
+          <div className="bg-[#141C38] border border-slate-800 text-white rounded-xl p-6 shadow-md space-y-6">
+            {/* Header with Security Padlock */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800 gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center font-bold">
+                  <Lock className="w-5 h-5 text-blue-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
+                    Section C: Controlled Clinical Closure Gate
+                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
+                      Triple-Gate Lock
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    In accordance with hospital clinical governance rules, this incident cannot be closed until all three gates are fully satisfied.
+                  </p>
+                </div>
+              </div>
+
+              {/* Master Gate Status Pill */}
+              <span
+                className={`self-start sm:self-auto inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
+                  canFinalClose
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                    : 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                }`}
+              >
+                {canFinalClose ? (
+                  <>
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-400" /> All Gates Primed & Ready
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-3.5 h-3.5 text-rose-400" /> Gate Locked (Prerequisites Pending)
+                  </>
+                )}
+              </span>
+            </div>
+
+            {/* Visual Gate Cards Grid (Interactive Gate Indicators) */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+              {/* Gate 1 Card: CAPA Actions Completed & Verified */}
               <div
-                className={`p-4 rounded-lg border flex items-start gap-3 ${
+                className={`p-4 rounded-xl border transition-all ${
                   isGate1Satisfied
-                    ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-200'
-                    : 'bg-slate-800/60 border-slate-700 text-slate-400'
+                    ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-100'
+                    : 'bg-slate-800/50 border-slate-700/80 text-slate-300'
                 }`}
               >
-                {isGate1Satisfied ? (
-                  <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
-                ) : (
-                  <XCircle className="w-5 h-5 text-rose-400 shrink-0" />
-                )}
-                <div>
-                  <p className="font-bold text-white">Gate 1: Actions Verified</p>
-                  <p className="text-[11px] mt-0.5">
-                    All CAPA actions must be marked COMPLETED and VERIFIED by manager sign-off.
-                  </p>
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    {isGate1Satisfied ? (
+                      <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-rose-400 shrink-0" />
+                    )}
+                    <span className="font-bold text-white text-xs">Gate 1: Actions Verified</span>
+                  </div>
+                  <span
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                      isGate1Satisfied
+                        ? 'bg-emerald-500/20 text-emerald-300'
+                        : 'bg-slate-700 text-slate-300'
+                    }`}
+                  >
+                    {incident.capaActions
+                      ? `${incident.capaActions.filter((a) => a.status === 'COMPLETED' && a.isVerified).length}/${incident.capaActions.length}`
+                      : '0/0'}
+                  </span>
                 </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  All CAPA actions must be marked COMPLETED and VERIFIED by manager sign-off.
+                </p>
               </div>
 
+              {/* Gate 2 Card: Barrier Risk Controls Verified */}
               <div
-                className={`p-4 rounded-lg border flex items-start gap-3 ${
+                className={`p-4 rounded-xl border transition-all ${
                   isGate2Satisfied
-                    ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-200'
-                    : 'bg-slate-800/60 border-slate-700 text-slate-400'
+                    ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-100'
+                    : 'bg-slate-800/50 border-slate-700/80 text-slate-300'
                 }`}
               >
-                {isGate2Satisfied ? (
-                  <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
-                ) : (
-                  <XCircle className="w-5 h-5 text-rose-400 shrink-0" />
-                )}
-                <div>
-                  <p className="font-bold text-white">Gate 2: Controls Verified</p>
-                  <p className="text-[11px] mt-0.5">
-                    All departmental risk barrier controls must be assessed and VERIFIED.
-                  </p>
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    {isGate2Satisfied ? (
+                      <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-rose-400 shrink-0" />
+                    )}
+                    <span className="font-bold text-white text-xs">Gate 2: Controls Verified</span>
+                  </div>
+                  <span
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                      isGate2Satisfied
+                        ? 'bg-emerald-500/20 text-emerald-300'
+                        : 'bg-slate-700 text-slate-300'
+                    }`}
+                  >
+                    {incident.controls
+                      ? `${incident.controls.filter((c) => c.status === 'VERIFIED').length}/${incident.controls.length}`
+                      : '0/0'}
+                  </span>
                 </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  All departmental risk barrier controls must be assessed and VERIFIED.
+                </p>
               </div>
 
+              {/* Gate 3 Card: Formal Management Review Approved */}
               <div
-                className={`p-4 rounded-lg border flex items-start gap-3 ${
+                className={`p-4 rounded-xl border transition-all ${
                   isGate3Satisfied
-                    ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-200'
-                    : 'bg-slate-800/60 border-slate-700 text-slate-400'
+                    ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-100'
+                    : 'bg-slate-800/50 border-slate-700/80 text-slate-300'
                 }`}
               >
-                {isGate3Satisfied ? (
-                  <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
-                ) : (
-                  <XCircle className="w-5 h-5 text-rose-400 shrink-0" />
-                )}
-                <div>
-                  <p className="font-bold text-white">Gate 3: Review Approved</p>
-                  <p className="text-[11px] mt-0.5">
-                    Formal Management Review must be documented with outcome APPROVED.
-                  </p>
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    {isGate3Satisfied ? (
+                      <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-rose-400 shrink-0" />
+                    )}
+                    <span className="font-bold text-white text-xs">Gate 3: Review Approved</span>
+                  </div>
+                  <span
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                      isGate3Satisfied
+                        ? 'bg-emerald-500/20 text-emerald-300'
+                        : 'bg-slate-700 text-slate-300'
+                    }`}
+                  >
+                    {isGate3Satisfied ? 'Approved' : 'Pending'}
+                  </span>
                 </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Formal Management Review must be documented with outcome APPROVED.
+                </p>
               </div>
             </div>
 
-            {/* Closure Summary textarea and the "Validate and Close Incident" final button.
-                 If the incident is already CLOSED, show a read-only closed confirmation block instead. */}
+            {/* ── CLOSURE EXECUTION PANEL OR FORMAL CLOSURE CERTIFICATE ───────── */}
             {incident.status === 'CLOSED' ? (
-              <div className="bg-emerald-900/30 border border-emerald-500/30 p-4 rounded-lg text-xs text-emerald-200 space-y-1">
-                <p className="font-bold flex items-center gap-1.5 text-sm">
-                  <CheckCircle className="w-4 h-4 text-emerald-400" /> Incident Is Formally Closed
-                </p>
-                <p>Closed At: {incident.closedAt ? new Date(incident.closedAt).toLocaleString() : 'N/A'}</p>
-                <p>Closed By: {incident.closedBy?.name || 'Authorized Manager'}</p>
-                <p className="mt-2 text-white">
-                  <span className="font-semibold text-emerald-300">Closure Summary:</span>{' '}
-                  {incident.closureSummary}
-                </p>
+              /* Tamper-Evident Closure Certificate */
+              <div className="bg-emerald-950/40 border border-emerald-500/40 rounded-xl p-6 text-xs text-emerald-100 space-y-4 shadow-inner">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-emerald-500/30 gap-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                      <CheckCircle className="w-5 h-5 text-emerald-400" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-white tracking-tight">
+                        Incident Formally Closed & Validated
+                      </h4>
+                      <p className="text-[11px] text-emerald-300/80">
+                        Governed under Hospital Clinical Safety & Risk Compliance Protocol
+                      </p>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 self-start sm:self-auto">
+                    LIFECYCLE COMPLETE
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="text-emerald-300/80 font-medium">Closed At:</span>
+                    <p className="text-white font-semibold mt-0.5">
+                      {incident.closedAt ? new Date(incident.closedAt).toLocaleString() : 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-emerald-300/80 font-medium">Authorized Closing Manager:</span>
+                    <p className="text-white font-semibold mt-0.5">
+                      {incident.closedBy?.name || 'Authorized Manager'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-emerald-500/20">
+                  <span className="text-emerald-300/80 font-medium block mb-1">
+                    Formal Clinical Closure Summary:
+                  </span>
+                  <div className="p-3 bg-black/20 rounded-lg border border-emerald-500/30 text-white italic leading-relaxed">
+                    "{incident.closureSummary}"
+                  </div>
+                </div>
               </div>
             ) : (
+              /* Active Closure Submission Form */
               <div className="space-y-4 pt-2">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-200 mb-1">
-                    Structured Clinical Closure Summary (Min 20 characters required)
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-200">
+                      Structured Clinical Closure Summary <span className="text-rose-400">*</span>
+                    </label>
+                    <span
+                      className={`text-[11px] font-medium ${
+                        isClosureSummaryValid ? 'text-emerald-400 font-semibold' : 'text-slate-400'
+                      }`}
+                    >
+                      {closureSummary.trim().length} / 20 characters {isClosureSummaryValid ? '✓' : 'needed'}
+                    </span>
+                  </div>
                   <textarea
                     rows={3}
                     value={closureSummary}
                     onChange={(e) => setClosureSummary(e.target.value)}
-                    placeholder="Enter formal justification affirming all patient safety risk controls are in place..."
-                    className="w-full text-xs p-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Enter formal justification affirming that all patient safety risk controls are in place and verified..."
+                    className="w-full text-xs p-3 bg-slate-800/90 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400 transition-all leading-relaxed"
                   />
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    Current characters: {closureSummary.trim().length} / 20 required
-                  </p>
+                  <div className="flex items-center justify-between text-[11px] mt-1.5">
+                    <span
+                      className={
+                        isClosureSummaryValid
+                          ? 'text-emerald-400 font-semibold flex items-center gap-1'
+                          : 'text-slate-400'
+                      }
+                    >
+                      {isClosureSummaryValid ? (
+                        <>
+                          <CheckCircle className="w-3 h-3 text-emerald-400" /> Minimum clinical justification requirement satisfied
+                        </>
+                      ) : (
+                        `Minimum 20 characters required before closure (${Math.max(0, 20 - closureSummary.trim().length)} more needed)`
+                      )}
+                    </span>
+                  </div>
                 </div>
 
+                {/* Validate and Close Incident Execution Button */}
                 <button
                   onClick={handleFinalClose}
                   disabled={!canFinalClose || isSubmitting}
-                  className={`w-full py-3 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md ${
+                  className={`w-full py-3.5 px-4 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2.5 transition-all shadow-md ${
                     canFinalClose && !isSubmitting
-                      ? 'bg-emerald-500 hover:bg-emerald-600 text-white cursor-pointer'
-                      : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+                      ? 'bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow-emerald-950/40 hover:shadow-lg'
+                      : 'bg-slate-800/80 text-slate-500 cursor-not-allowed border border-slate-700/60'
                   }`}
                 >
-                  <Lock className="w-4 h-4" /> Validate and Close Incident
+                  <Lock className={`w-4 h-4 ${canFinalClose ? 'text-white' : 'text-slate-500'}`} />
+                  {isSubmitting
+                    ? 'Validating & Closing Incident...'
+                    : 'Validate and Formally Close Incident'}
                 </button>
               </div>
             )}
           </div>
+
         </div>
       )}
+
     </div>
   );
 };
