@@ -897,124 +897,234 @@ export const ManagerIncidentDetails: React.FC = () => {
       )}
 
       {/* ── TAB 2: INVESTIGATION & FINDINGS REVIEW ─────────────────────────── */}
-      {/* Two panels:
-           A) Investigator assignment dropdown + Assign button
-           B) Read-only root-cause findings from the investigator + manager review controls */}
+      {/* Stage 2 Governance: Role-guarded investigator delegation and root-cause analysis (RCA) review */}
       {activeTab === 'investigation' && (
         <div className="space-y-6">
-          {/* Panel A: Lead Investigator Assignment
-               Filters the team list to INVESTIGATOR-role members only.
-               Shows a warning if no investigators exist in the department. */}
-          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-slate-800">Lead Investigator Assignment</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-              <div className="md:col-span-2">
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Assign Department Investigator
-                </label>
-                <select
-                  value={selectedInvestigatorId}
-                  onChange={(e) => setSelectedInvestigatorId(Number(e.target.value))}
-                  className="w-full text-xs p-2.5 border border-slate-300 rounded-lg bg-white"
-                >
-                  <option value="">-- Select Active Department Investigator --</option>
-                  {team
-                    .filter((u) => u.role === 'INVESTIGATOR')
-                    .map((user) => (
-                      <option key={user.id} value={user.id}>
-                        {user.name} ({user.role}) - {user.email}
-                      </option>
-                    ))}
-                </select>
-                {team.filter((u) => u.role === 'INVESTIGATOR').length === 0 && (
-                  <p className="text-[11px] text-amber-600 mt-1.5 flex items-center gap-1">
-                    <AlertTriangle className="w-3.5 h-3.5" />
-                    No active investigators found in this department. Please assign an investigator in My Team.
-                  </p>
-                )}
+          {/* Panel A: Lead Investigator Assignment & Delegation Card */}
+          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                  <Search className="w-4 h-4 text-blue-600" /> Lead Investigator Assignment
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Delegate formal root-cause analysis authority to an authorized departmental investigator.
+                </p>
               </div>
-              <button
-                onClick={handleAssignInvestigator}
-                disabled={isSubmitting || !selectedInvestigatorId}
-                className="px-4 py-2.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 shadow-sm disabled:opacity-50"
-              >
-                Assign & Begin Investigation
-              </button>
+              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full border bg-slate-50 text-slate-700 border-slate-200 self-start sm:self-auto">
+                Status: {incident.investigator ? 'Investigator Assigned' : 'Unassigned'}
+              </span>
             </div>
+            {/* If an investigator is ALREADY assigned, display an authoritative Delegation Card */}
             {incident.investigator && (
-              <p className="text-xs text-slate-600 mt-2">
-                Currently Assigned Lead: <span className="font-semibold text-slate-800">{incident.investigator.name}</span> ({incident.investigator.email})
-              </p>
+              <div className="bg-blue-50/50 border border-blue-200/80 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-10 h-10 rounded-full bg-[#1E2B58] text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-xs">
+                    {incident.investigator.name.charAt(0)}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-bold text-slate-900">{incident.investigator.name}</h4>
+                      <span className="text-[10px] font-bold uppercase tracking-wider bg-purple-50 text-purple-700 px-2 py-0.5 rounded border border-purple-200">
+                        Lead Investigator
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">{incident.investigator.email}</p>
+                  </div>
+                </div>
+                <div className="text-xs text-slate-600 sm:text-right">
+                  <span className="inline-flex items-center gap-1.5 text-blue-700 font-semibold bg-blue-100/60 px-2.5 py-1 rounded-md">
+                    <Clock className="w-3.5 h-3.5" /> Investigation in Progress
+                  </span>
+                </div>
+              </div>
             )}
+            {/* Assignment / Reassignment Controls */}
+            <div className="pt-2">
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                {incident.investigator ? 'Reassign Lead Investigator' : 'Assign Department Investigator'}
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+                <div className="md:col-span-8">
+                  <select
+                    value={selectedInvestigatorId}
+                    onChange={(e) => setSelectedInvestigatorId(Number(e.target.value))}
+                    className="w-full text-xs p-2.5 border border-slate-300 rounded-lg bg-white outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all text-slate-700 cursor-pointer"
+                  >
+                    <option value="">-- Select Active Department Investigator --</option>
+                    {team
+                      .filter((u) => u.role === 'INVESTIGATOR')
+                      .map((user) => (
+                        <option key={user.id} value={user.id}>
+                          {user.name} ({user.role}) — {user.email}
+                        </option>
+                      ))}
+                  </select>
+                  {team.filter((u) => u.role === 'INVESTIGATOR').length === 0 && (
+                    <p className="text-[11px] text-amber-600 mt-1.5 flex items-center gap-1">
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      No active investigators found in this department. Please assign an investigator in My Team.
+                    </p>
+                  )}
+                </div>
+                <div className="md:col-span-4">
+                  <button
+                    type="button"
+                    onClick={handleAssignInvestigator}
+                    disabled={isSubmitting || !selectedInvestigatorId}
+                    className="w-full px-4 py-2.5 bg-[#1E2B58] text-white text-xs font-semibold rounded-lg hover:bg-[#162044] transition-colors shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <Search className="w-3.5 h-3.5" />
+                    {incident.investigator ? 'Update Lead Assignment' : 'Assign & Begin Investigation'}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
-
-          {/* Panel B: Investigator Root-Cause Findings (read-only display)
-               Shows rootCauseCategory, rootCause, and investigationFindings from the API.
-               Below the read-only block, the manager can enter comments and
-               approve or return the findings for revision. */}
-          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-800">Investigator Root-Cause Findings</h3>
+          {/* Panel B: Investigator Root-Cause Findings (RCA) & Review Gate */}
+          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                  <ClipboardList className="w-4 h-4 text-blue-600" /> Root-Cause Analysis (RCA) &amp; Evidence Findings
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Evaluate contributing clinical, human, and equipment factors submitted by the investigator.
+                </p>
+              </div>
+              {/* Clinical Review Status Badge */}
               <span
-                className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${
+                className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border self-start sm:self-auto ${
                   incident.investigationReviewStatus === 'APPROVED'
-                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                     : incident.investigationReviewStatus === 'REVISION_REQUESTED'
-                    ? 'bg-amber-100 text-amber-800 border-amber-300'
-                    : 'bg-slate-100 text-slate-700 border-slate-300'
+                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                    : 'bg-blue-50 text-blue-700 border-blue-200'
                 }`}
               >
                 Review Status: {incident.investigationReviewStatus || 'PENDING'}
               </span>
             </div>
-
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-2">
-              <p>
-                <span className="font-semibold text-slate-700">Root Cause Category:</span>{' '}
-                {incident.rootCauseCategory || 'Pending investigator input'}
-              </p>
-              <p>
-                <span className="font-semibold text-slate-700">Root Cause Description:</span>{' '}
-                {incident.rootCause || 'No root cause entered yet'}
-              </p>
-              <p>
-                <span className="font-semibold text-slate-700">Detailed Findings:</span>{' '}
-                {incident.investigationFindings || 'No detailed findings submitted yet'}
-              </p>
-            </div>
-
-            {/* Manager Review Controls – only meaningful after the investigator has submitted findings */}
-            <div className="pt-2 space-y-3">
-              <label className="block text-xs font-semibold text-slate-700">
-                Manager Review Comments (Min 10 characters)
-              </label>
-              <textarea
-                rows={2}
-                value={investigationComments}
-                onChange={(e) => setInvestigationComments(e.target.value)}
-                placeholder="Enter clinical assessment of these findings..."
-                className="w-full text-xs p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-              />
-              <div className="flex gap-3">
+            {/* RCA Findings Content Display */}
+            {!incident.rootCause && !incident.investigationFindings ? (
+              /* State 1: Investigator has not yet submitted findings */
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 text-center space-y-2">
+                <Clock className="w-8 h-8 text-slate-400 mx-auto" />
+                <h4 className="text-xs font-bold text-slate-800">
+                  Awaiting Investigator Findings Submission
+                </h4>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  {incident.investigator
+                    ? `${incident.investigator.name} has been assigned as lead investigator. Root-cause findings will appear here once submitted from the Investigator Workspace.`
+                    : 'Assign a lead investigator above to initiate formal evidence gathering and root-cause analysis.'}
+                </p>
+              </div>
+            ) : (
+              /* State 2: Findings Submitted – Structured Clinical Review Cards */
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                  <div className="p-3.5 bg-slate-50/80 rounded-lg border border-slate-200/80">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                      Root Cause Category
+                    </span>
+                    <span className="text-xs font-bold text-slate-800">
+                      {incident.rootCauseCategory || 'Unclassified'}
+                    </span>
+                  </div>
+                  <div className="md:col-span-2 p-3.5 bg-slate-50/80 rounded-lg border border-slate-200/80">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                      Root Cause Summary
+                    </span>
+                    <p className="text-xs text-slate-800 leading-relaxed font-medium">
+                      {incident.rootCause || 'No root cause summary entered.'}
+                    </p>
+                  </div>
+                </div>
+                <div className="border-l-4 border-l-[#1E2B58] bg-slate-50/70 p-4 rounded-r-lg border-y border-r border-slate-200/80">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                    Detailed Clinical Findings &amp; Contributing Factors
+                  </span>
+                  <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap">
+                    {incident.investigationFindings || 'No detailed findings provided.'}
+                  </p>
+                </div>
+              </div>
+            )}
+            {/* Manager Review Disposition Controls */}
+            {incident.investigationReviewStatus === 'APPROVED' ? (
+              /* Approved State: Audit Stamp & Fast Link to Stage 3 CAPA */
+              <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-emerald-100 border border-emerald-200 flex items-center justify-center shrink-0">
+                    <CheckCircle className="w-4 h-4 text-emerald-700" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-emerald-900">Findings Formally Approved</h4>
+                    <p className="text-xs text-emerald-700 mt-0.5">
+                      {incident.investigationReviewComment || 'Clinical findings verified and accepted for CAPA creation.'}
+                    </p>
+                  </div>
+                </div>
                 <button
-                  onClick={() => handleReviewFindings('APPROVE')}
-                  disabled={isSubmitting}
-                  className="px-4 py-2 bg-emerald-600 text-white text-xs font-semibold rounded-lg hover:bg-emerald-700 shadow-sm"
+                  type="button"
+                  onClick={() => setActiveTab('capa')}
+                  className="px-3.5 py-2 text-xs font-semibold text-white bg-[#1E2B58] hover:bg-[#162044] rounded-lg shadow-xs transition-colors whitespace-nowrap self-start sm:self-auto cursor-pointer"
                 >
-                  Approve Findings
-                </button>
-                <button
-                  onClick={() => handleReviewFindings('REVISE')}
-                  disabled={isSubmitting}
-                  className="px-4 py-2 bg-amber-600 text-white text-xs font-semibold rounded-lg hover:bg-amber-700 shadow-sm"
-                >
-                  Return for Revision
+                  Proceed to Actions &amp; Controls (CAPA) &rarr;
                 </button>
               </div>
-            </div>
+            ) : (
+              /* Active Review Form (when findings are submitted or awaiting manager approval) */
+              <div className="pt-3 border-t border-slate-100 space-y-3.5">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-slate-700">
+                      Manager Review Assessment <span className="text-rose-500">*</span>
+                    </label>
+                    <span
+                      className={`text-[11px] font-mono ${
+                        investigationComments.trim().length >= 10
+                          ? 'text-emerald-600 font-semibold'
+                          : 'text-slate-400'
+                      }`}
+                    >
+                      {investigationComments.trim().length} / 10 characters required
+                    </span>
+                  </div>
+                  <textarea
+                    rows={3}
+                    value={investigationComments}
+                    onChange={(e) => setInvestigationComments(e.target.value)}
+                    placeholder="Enter formal clinical evaluation of these findings before approving or returning for revision..."
+                    className="w-full text-xs p-3.5 border border-slate-300 rounded-lg focus:border-blue-600 focus:ring-1 focus:ring-blue-600/15 outline-none transition-all text-slate-800 placeholder-slate-400 bg-white"
+                  />
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleReviewFindings('APPROVE')}
+                    disabled={isSubmitting || investigationComments.trim().length < 10}
+                    className="px-4 py-2.5 bg-[#1E2B58] text-white text-xs font-semibold rounded-lg hover:bg-[#162044] flex items-center gap-2 shadow-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <CheckCircle className="w-4 h-4 text-emerald-400" />
+                    Approve RCA Findings
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleReviewFindings('REVISE')}
+                    disabled={isSubmitting || investigationComments.trim().length < 10}
+                    className="px-4 py-2.5 bg-amber-50/70 text-amber-800 border border-amber-300 hover:bg-amber-100/70 text-xs font-semibold rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <AlertCircle className="w-4 h-4 text-amber-600" />
+                    Return for Revision
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
+
 
       {/* ── TAB 3: ACTIONS & CONTROLS (CAPA) ───────────────────────────────── */}
       {/* Three sections:
