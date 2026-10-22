@@ -1,53 +1,109 @@
-// frontend/src/pages/IncidentsList.tsx
+// frontend/src/features/manager/pages/IncidentsList.tsx
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDepartmentIncidents } from '../../incidents/hooks/useIncidents';
 import { useAuthContext } from '../../auth/context/AuthContext';
-import { getDepartmentName } from '../../../shared/utils/constants';
 import type { Incident } from '../../incidents/types/incident';
+import {
+  Search,
+  Download,
+  ChevronRight,
+  AlertCircle,
+} from 'lucide-react';
 
+/**
+ * Incident Register Component for Department Managers
+ * Provides multi-criteria searching, status/severity filtering, dynamic sorting,
+ * client-side pagination, and CSV data export for clinical governance auditing.
+ */
 export const IncidentsList: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthContext();
   const departmentId = user?.departmentId ?? 1;
 
-  // Filter States
+  // ── 1. Filter and Pagination States ─────────────────────────────────────────
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [severityFilter, setSeverityFilter] = useState('ALL');
+  const [categoryFilter, setCategoryFilter] = useState('ALL');
+  const [sortOrder, setSortOrder] = useState('NEWEST');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
-  // Fetch incidents for this department
+  // Fetch all incidents for this department via the core domain query hook
   const { data: incidents, isLoading, isError, error } = useDepartmentIncidents(departmentId);
 
-  // Filter logic
-  const filteredIncidents = (incidents || []).filter((incident: Incident) => {
-    const matchesSearch =
-      incident.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      incident.id.toString().includes(searchTerm) ||
-      Boolean(incident.reporter?.name?.toLowerCase().includes(searchTerm.toLowerCase()));
+  // ── 2. Dynamic Categories Derivation ─────────────────────────────────────────
+  const categories = useMemo(() => {
+    if (!incidents) return [];
+    const uniqueCats = Array.from(new Set(incidents.map((i) => i.category).filter(Boolean)));
+    return uniqueCats.sort();
+  }, [incidents]);
 
-    const matchesStatus = statusFilter === 'ALL' || incident.status === statusFilter;
-    const matchesSeverity = severityFilter === 'ALL' || incident.severity === severityFilter;
+  // ── 3. Multi-Criteria Filtering & Sorting Logic ─────────────────────────────
+  const filteredAndSortedIncidents = useMemo(() => {
+    if (!incidents) return [];
 
-    return matchesSearch && matchesStatus && matchesSeverity;
-  });
+    // Filter by search query, status, severity, and category
+    const result = incidents.filter((incident: Incident) => {
+      const searchLower = searchTerm.toLowerCase();
+      const matchesSearch =
+        !searchTerm ||
+        incident.title.toLowerCase().includes(searchLower) ||
+        incident.id.toString().includes(searchLower) ||
+        incident.location?.toLowerCase().includes(searchLower) ||
+        Boolean(incident.reporter?.name?.toLowerCase().includes(searchLower));
 
-  // CSV Export Logic
+      const matchesStatus = statusFilter === 'ALL' || incident.status === statusFilter;
+      const matchesSeverity = severityFilter === 'ALL' || incident.severity === severityFilter;
+      const matchesCategory = categoryFilter === 'ALL' || incident.category === categoryFilter;
+
+      return matchesSearch && matchesStatus && matchesSeverity && matchesCategory;
+    });
+
+    // Apply selected sorting criteria
+    return result.sort((a, b) => {
+      switch (sortOrder) {
+        case 'OLDEST':
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        case 'SEVERITY_DESC': {
+          const weights: Record<string, number> = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
+          return (weights[b.severity] || 0) - (weights[a.severity] || 0);
+        }
+        case 'SEVERITY_ASC': {
+          const weights: Record<string, number> = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
+          return (weights[a.severity] || 0) - (weights[b.severity] || 0);
+        }
+        case 'NEWEST':
+        default:
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+    });
+  }, [incidents, searchTerm, statusFilter, severityFilter, categoryFilter, sortOrder]);
+
+  // ── 4. Client-side Pagination Slicing ────────────────────────────────────────
+  const totalRecords = filteredAndSortedIncidents.length;
+  const totalPages = Math.ceil(totalRecords / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedIncidents = filteredAndSortedIncidents.slice(startIndex, endIndex);
+
+  // ── 5. CSV Export Engine ───────────────────────────────────────────────────
   const generateCSVData = () => {
-    if (!filteredIncidents || filteredIncidents.length === 0) return '';
-    const headers = ['ID', 'Title', 'Severity', 'Status', 'Category', 'Location', 'Reporter', 'Created At'];
-    const rows = filteredIncidents.map((i: Incident) => [
+    if (!filteredAndSortedIncidents || filteredAndSortedIncidents.length === 0) return '';
+    const headers = ['ID', 'Title', 'Severity', 'Status', 'Category', 'Location', 'Reporter', 'Reported Date'];
+    const rows = filteredAndSortedIncidents.map((i: Incident) => [
       i.id,
-      `"${i.title.replaceAll('"', '""')}"`,
+      `"${(i.title || '').replace(/"/g, '""')}"`,
       i.severity,
       i.status,
       i.category,
-      `"${i.location.replaceAll('"', '""')}"`,
-      `"${(i.reporter?.name || 'Unknown').replaceAll('"', '""')}"`,
-      new Date(i.createdAt).toISOString(),
+      `"${(i.location || '').replace(/"/g, '""')}"`,
+      `"${(i.reporter?.name || 'Unknown').replace(/"/g, '""')}"`,
+      new Date(i.createdAt).toISOString().split('T')[0],
     ]);
-    return [headers.join(','), ...rows.map((r: (string | number)[]) => r.join(','))].join('\n');
+    return [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
   };
 
   const getCSVExportData = () => {
@@ -56,262 +112,405 @@ export const IncidentsList: React.FC = () => {
     const url = URL.createObjectURL(blob);
     return {
       href: url,
-      filename: `incidents-dept-${departmentId}-${new Date().toISOString().split('T')[0]}.csv`,
+      filename: `incident-register-dept-${departmentId}-${new Date().toISOString().split('T')[0]}.csv`,
     };
   };
 
   const csvExport = getCSVExportData();
 
   const handleExportCSV = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    if (!filteredIncidents || filteredIncidents.length === 0) {
+    if (filteredAndSortedIncidents.length === 0) {
       e.preventDefault();
-      alert('No data available to export.');
+      alert('No incident records available to export for the selected filters.');
     }
   };
 
-  // Helper function to get badge colors for Status
-  const getStatusBadge = (status: string) => {
-    const styles: Record<string, { bg: string; color: string; border: string }> = {
-      OPEN: { bg: '#EFF6FF', color: '#2563EB', border: '#BFDBFE' },
-      ACCEPTED: { bg: '#F0FDF4', color: '#16A34A', border: '#BBF7D0' },
-      INVESTIGATING: { bg: '#F5F3FF', color: '#7C3AED', border: '#DDD6FE' },
-      PENDING_ACTION: { bg: '#FFFBEB', color: '#D97706', border: '#FDE68A' },
-      UNDER_REVIEW: { bg: '#EFF6FF', color: '#0EA5E9', border: '#BAE6FD' },
-      CLOSED: { bg: '#F0FDF4', color: '#15803D', border: '#BBF7D0' },
-      REJECTED: { bg: '#FEF2F2', color: '#DC2626', border: '#FECACA' },
-    };
-    const s = styles[status] || { bg: '#F1F5F9', color: '#6B7494', border: '#CBD5E1' };
-    return (
-      <span
-        className="px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wide inline-block"
-        style={{ backgroundColor: s.bg, color: s.color, border: `1px solid ${s.border}` }}
-      >
-        {status.replace('_', ' ')}
-      </span>
-    );
-  };
-
-  // Helper function to get badge colors for Severity
+  // ── 6. Clinical Badge Style Resolvers ───────────────────────────────────────
   const getSeverityBadge = (severity: string) => {
-    const styles: Record<string, { bg: string; color: string; border: string }> = {
-      CRITICAL: { bg: '#FEF2F2', color: '#DC2626', border: '#FECACA' },
-      HIGH: { bg: '#FFF7ED', color: '#EA580C', border: '#FED7AA' },
-      MEDIUM: { bg: '#FEFCE8', color: '#CA8A04', border: '#FEF08A' },
-      LOW: { bg: '#F0FDF4', color: '#16A34A', border: '#BBF7D0' },
-    };
-    const s = styles[severity] || { bg: '#F1F5F9', color: '#6B7494', border: '#CBD5E1' };
-    return (
-      <span
-        className="px-2.5 py-1 rounded-md text-xs font-bold uppercase inline-block"
-        style={{ backgroundColor: s.bg, color: s.color, border: `1px solid ${s.border}` }}
-      >
-        {severity}
-      </span>
-    );
+    switch (severity?.toUpperCase()) {
+      case 'CRITICAL':
+        return (
+          <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+            Critical
+          </span>
+        );
+      case 'HIGH':
+        return (
+          <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+            High
+          </span>
+        );
+      case 'MEDIUM':
+        return (
+          <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+            Medium
+          </span>
+        );
+      case 'LOW':
+      default:
+        return (
+          <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            Low
+          </span>
+        );
+    }
   };
 
-  // Loading State
+  const getStatusBadge = (status: string) => {
+    switch (status?.toUpperCase()) {
+      case 'OPEN':
+        return (
+          <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+            Open
+          </span>
+        );
+      case 'ACCEPTED':
+        return (
+          <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            Accepted
+          </span>
+        );
+      case 'INVESTIGATING':
+        return (
+          <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+            Investigating
+          </span>
+        );
+      case 'PENDING_ACTION':
+        return (
+          <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+            Pending Action
+          </span>
+        );
+      case 'UNDER_REVIEW':
+        return (
+          <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-cyan-50 text-cyan-700 border border-cyan-200">
+            Under Review
+          </span>
+        );
+      case 'CLOSED':
+        return (
+          <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            Closed
+          </span>
+        );
+      case 'REJECTED':
+        return (
+          <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+            Rejected
+          </span>
+        );
+      default:
+        return (
+          <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-slate-50 text-slate-700 border border-slate-200">
+            {status}
+          </span>
+        );
+    }
+  };
+
+  // ── 7. Loading and Error Fallback Views ──────────────────────────────────────
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-80">
-        <div
-          className="animate-spin rounded-full h-12 w-12 border-[3px] border-t-transparent"
-          style={{ borderColor: '#2952C4 transparent #2952C4 #2952C4' }}
-        />
-      </div>
-    );
-  }
-
-  // Error State
-  if (isError) {
-    return (
-      <div className="p-6 rounded-2xl" style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA' }}>
-        <h3 className="font-bold text-red-600 text-lg">Error loading incidents</h3>
-        <p className="text-red-500 text-base mt-1">
-          {error instanceof Error ? error.message : 'Unknown error'}
+      <div className="flex flex-col justify-center items-center h-80 space-y-3">
+        <div className="animate-spin rounded-full h-10 w-10 border-4 border-slate-200 border-t-[#1E2B58]" />
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+          Loading Department Incident Register...
         </p>
       </div>
     );
   }
 
-  return (
-    <div className="space-y-7 pb-4">
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-5">
+  if (isError) {
+    return (
+      <div className="p-6 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-3">
+        <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
         <div>
-          <h1
-            className="text-3xl font-extrabold tracking-tight"
-            style={{ color: '#1A2447' }}
-          >
-            Incident Reports
+          <h3 className="font-bold text-rose-800 text-sm">Failed to load incident register</h3>
+          <p className="text-rose-600 text-xs mt-1">
+            {error instanceof Error ? error.message : 'Unable to synchronize departmental records.'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto space-y-6 pb-12">
+      {/* ── TOP HEADER: Department Records Title & Export Button ──────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <span className="text-xs font-extrabold uppercase tracking-widest text-blue-600">
+            Department Records
+          </span>
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+            Incident Register
           </h1>
-          <p className="text-base mt-1" style={{ color: '#6B7494' }}>
-            Showing <strong>{filteredIncidents.length}</strong> total logged incidents for {getDepartmentName(departmentId)}
+          <p className="text-sm text-slate-500">
+            Search, filter and review incidents reported to your department.
           </p>
         </div>
 
-        {/* Export Button */}
         <a
           href={csvExport.href}
           download={csvExport.filename}
           onClick={handleExportCSV}
-          className="px-5 py-3 text-sm font-bold rounded-xl flex items-center gap-2.5 transition-all shadow-sm cursor-pointer shrink-0"
-          style={{
-            backgroundColor: '#1E2B5E',
-            color: '#FFFFFF',
-            boxShadow: '0 2px 8px rgba(30,43,94,0.20)',
-          }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = '#16204A'; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = '#1E2B5E'; }}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold text-white bg-[#1E2B58] hover:bg-[#162044] transition-colors shadow-xs shrink-0 self-start sm:self-auto cursor-pointer"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-            />
-          </svg>
-          Export CSV Report
+          <Download className="w-4 h-4" />
+          Export CSV
         </a>
       </div>
 
-      {/* Filters & Search Bar */}
-      <div
-        className="p-5 rounded-2xl flex flex-col md:flex-row gap-4"
-        style={{ backgroundColor: '#F7F8FA', border: '1.5px solid #D8DCE8', boxShadow: '0 2px 8px rgba(30,43,94,0.06)' }}
-      >
-        {/* Search Input */}
-        <div className="flex-1 relative">
-          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: '#9BA4BC' }}>
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
-          </div>
-          <input
-            type="text"
-            placeholder="Search incidents by ID, title, or reporter name..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 text-[15px] rounded-xl outline-none transition-all"
-            style={{
-              backgroundColor: '#F1F3F8',
-              border: '1.5px solid #D8DCE8',
-              color: '#1A2447',
-            }}
-            onFocus={(e) => { e.currentTarget.style.borderColor = '#2952C4'; e.currentTarget.style.boxShadow = '0 0 0 3px #EBF0FA'; }}
-            onBlur={(e) => { e.currentTarget.style.borderColor = '#D8DCE8'; e.currentTarget.style.boxShadow = 'none'; }}
-          />
+      {/* ── FILTER CARD: Multi-Parameter Workbench ───────────────────────── */}
+      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
+        <div>
+          <h2 className="text-base font-bold text-slate-900">Find incidents</h2>
+          <p className="text-xs text-slate-500">
+            Use one or more filters to narrow the register.
+          </p>
         </div>
 
-        {/* Status Filter */}
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-4 py-3 text-[15px] font-semibold rounded-xl cursor-pointer min-w-[180px] outline-none"
-          style={{ backgroundColor: '#F1F3F8', border: '1.5px solid #D8DCE8', color: '#3B4565' }}
-        >
-          <option value="ALL">All Statuses</option>
-          <option value="OPEN">Open</option>
-          <option value="ACCEPTED">Accepted</option>
-          <option value="INVESTIGATING">Investigating</option>
-          <option value="PENDING_ACTION">Pending Action</option>
-          <option value="UNDER_REVIEW">Under Review</option>
-          <option value="CLOSED">Closed</option>
-          <option value="REJECTED">Rejected</option>
-        </select>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-3.5 items-end">
+          {/* Search Input */}
+          <div className="lg:col-span-4">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 block">
+              Search
+            </label>
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="ID, title, location or reporter"
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all text-slate-800 placeholder-slate-400 bg-white"
+              />
+            </div>
+          </div>
 
-        {/* Severity Filter */}
-        <select
-          value={severityFilter}
-          onChange={(e) => setSeverityFilter(e.target.value)}
-          className="px-4 py-3 text-[15px] font-semibold rounded-xl cursor-pointer min-w-[180px] outline-none"
-          style={{ backgroundColor: '#F1F3F8', border: '1.5px solid #D8DCE8', color: '#3B4565' }}
-        >
-          <option value="ALL">All Severities</option>
-          <option value="CRITICAL">Critical</option>
-          <option value="HIGH">High</option>
-          <option value="MEDIUM">Medium</option>
-          <option value="LOW">Low</option>
-        </select>
+          {/* Status Dropdown */}
+          <div className="lg:col-span-2">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 block">
+              Status
+            </label>
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 text-slate-700 bg-white cursor-pointer"
+            >
+              <option value="ALL">All statuses</option>
+              <option value="OPEN">Open</option>
+              <option value="ACCEPTED">Accepted</option>
+              <option value="INVESTIGATING">Investigating</option>
+              <option value="PENDING_ACTION">Pending Action</option>
+              <option value="UNDER_REVIEW">Under Review</option>
+              <option value="CLOSED">Closed</option>
+              <option value="REJECTED">Rejected</option>
+            </select>
+          </div>
+
+          {/* Severity Dropdown */}
+          <div className="lg:col-span-2">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 block">
+              Severity
+            </label>
+            <select
+              value={severityFilter}
+              onChange={(e) => {
+                setSeverityFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 text-slate-700 bg-white cursor-pointer"
+            >
+              <option value="ALL">All severities</option>
+              <option value="CRITICAL">Critical</option>
+              <option value="HIGH">High</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="LOW">Low</option>
+            </select>
+          </div>
+
+          {/* Category Dropdown */}
+          <div className="lg:col-span-2">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 block">
+              Category
+            </label>
+            <select
+              value={categoryFilter}
+              onChange={(e) => {
+                setCategoryFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 text-slate-700 bg-white cursor-pointer"
+            >
+              <option value="ALL">All categories</option>
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Sort Dropdown */}
+          <div className="lg:col-span-2">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 block">
+              Sort
+            </label>
+            <select
+              value={sortOrder}
+              onChange={(e) => {
+                setSortOrder(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 text-slate-700 bg-white cursor-pointer"
+            >
+              <option value="NEWEST">Newest reported</option>
+              <option value="OLDEST">Oldest reported</option>
+              <option value="SEVERITY_DESC">Highest severity</option>
+              <option value="SEVERITY_ASC">Lowest severity</option>
+            </select>
+          </div>
+        </div>
       </div>
 
-      {/* Data Table */}
-      <div
-        className="rounded-2xl overflow-hidden shadow-xs"
-        style={{ backgroundColor: '#F7F8FA', border: '1.5px solid #D8DCE8', boxShadow: '0 2px 8px rgba(30,43,94,0.06)' }}
-      >
+      {/* ── RESULTS CARD: Department Incidents Table Ledger ───────────────── */}
+      <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
+        {/* Table Title Bar */}
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-bold text-slate-900">Department incidents</h2>
+            <p className="text-xs text-slate-500 font-medium">
+              {totalRecords} records found
+            </p>
+          </div>
+        </div>
+
+        {/* Scrollable Table View */}
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
-            {/* Table Header */}
             <thead>
-              <tr
-                className="text-xs font-bold uppercase tracking-wider"
-                style={{ backgroundColor: '#EDEEF3', borderBottom: '1.5px solid #D8DCE8', color: '#6B7494' }}
-              >
-                <th className="px-6 py-4">ID</th>
-                <th className="px-6 py-4">Incident Title</th>
-                <th className="px-6 py-4">Severity</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Category</th>
-                <th className="px-6 py-4">Department</th>
-                <th className="px-6 py-4">Reporter</th>
-                <th className="px-6 py-4 text-right">Reported Date</th>
+              <tr className="text-[11px] font-bold text-slate-500 uppercase tracking-wider bg-slate-50/70 border-b border-slate-200">
+                <th className="py-3.5 px-6">Incident</th>
+                <th className="py-3.5 px-6">Severity</th>
+                <th className="py-3.5 px-6">Status</th>
+                <th className="py-3.5 px-6">Category</th>
+                <th className="py-3.5 px-6">Location</th>
+                <th className="py-3.5 px-6">Reporter</th>
+                <th className="py-3.5 px-6">Reported</th>
+                <th className="py-3.5 px-4 text-right"></th>
               </tr>
             </thead>
 
-            {/* Table Body */}
-            <tbody style={{ borderTop: '1px solid #D8DCE8' }}>
-              {filteredIncidents.length === 0 ? (
+            <tbody className="divide-y divide-slate-100">
+              {paginatedIncidents.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-16 text-center text-base font-medium" style={{ color: '#9BA4BC' }}>
-                    No incidents found matching your criteria.
+                  <td colSpan={8} className="py-12 px-6 text-center text-xs text-slate-400">
+                    No departmental incidents matched your search or filter criteria.
                   </td>
                 </tr>
               ) : (
-                filteredIncidents.map((incident: Incident, i: number) => (
+                paginatedIncidents.map((incident: Incident) => (
                   <tr
                     key={incident.id}
                     onClick={() => navigate(`/incidents/${incident.id}`)}
-                    className="cursor-pointer group transition-colors"
-                    style={{
-                      backgroundColor: i % 2 === 0 ? '#FFFFFF' : '#F1F3F8',
-                      borderBottom: '1px solid #EBF0FA',
-                    }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = '#EBF0FA'; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = i % 2 === 0 ? '#FFFFFF' : '#F1F3F8'; }}
+                    className="hover:bg-slate-50/80 cursor-pointer transition-colors group"
                   >
-                    <td className="px-6 py-4 text-[15px] font-mono font-bold" style={{ color: '#6B7494' }}>#{incident.id}</td>
-
-                    <td className="px-6 py-4">
-                      <div
-                        className="text-[15px] font-bold transition-colors group-hover:text-blue-700"
-                        style={{ color: '#1A2447' }}
-                      >
+                    {/* Incident ID and Title */}
+                    <td className="py-3.5 px-6">
+                      <span className="text-xs font-mono font-bold text-blue-600 block mb-0.5">
+                        #{incident.id}
+                      </span>
+                      <span className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-1">
                         {incident.title}
-                      </div>
+                      </span>
                     </td>
 
-                    <td className="px-6 py-4">{getSeverityBadge(incident.severity)}</td>
-                    <td className="px-6 py-4">{getStatusBadge(incident.status)}</td>
-                    <td className="px-6 py-4 text-[14px] font-medium" style={{ color: '#3B4565' }}>{incident.category}</td>
-                    <td className="px-6 py-4 text-[14px] font-medium" style={{ color: '#3B4565' }}>
-                      {getDepartmentName(incident.departmentId)}
+                    {/* Severity Pill */}
+                    <td className="py-3.5 px-6 whitespace-nowrap">
+                      {getSeverityBadge(incident.severity)}
                     </td>
-                    <td className="px-6 py-4 text-[14px] font-medium" style={{ color: '#3B4565' }}>
-                      {incident.reporter?.name || 'Unknown'}
+
+                    {/* Status Pill */}
+                    <td className="py-3.5 px-6 whitespace-nowrap">
+                      {getStatusBadge(incident.status)}
                     </td>
-                    <td className="px-6 py-4 text-[14px] font-medium text-right whitespace-nowrap" style={{ color: '#6B7494' }}>
-                      {new Date(incident.createdAt).toLocaleDateString('en-GB', {
+
+                    {/* Category */}
+                    <td className="py-3.5 px-6 text-xs font-medium text-slate-600 whitespace-nowrap">
+                      {incident.category || 'General'}
+                    </td>
+
+                    {/* Location */}
+                    <td className="py-3.5 px-6 text-xs font-medium text-slate-600 whitespace-nowrap">
+                      {incident.location || 'Unspecified'}
+                    </td>
+
+                    {/* Reporter Name */}
+                    <td className="py-3.5 px-6 text-xs font-medium text-slate-600 whitespace-nowrap">
+                      {incident.reporter?.name || 'Unknown Reporter'}
+                    </td>
+
+                    {/* Reported Date */}
+                    <td className="py-3.5 px-6 text-xs font-medium text-slate-600 whitespace-nowrap">
+                      {new Date(incident.createdAt).toLocaleDateString('en-US', {
+                        month: 'numeric',
                         day: 'numeric',
-                        month: 'short',
                         year: 'numeric',
                       })}
+                    </td>
+
+                    {/* Chevron Indicator */}
+                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                      <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all inline-block" />
                     </td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* ── PAGINATION CONTROLS: 10 Records Per Page ──────────────────────── */}
+        <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white">
+          <p className="text-xs font-medium text-slate-500">
+            Showing{' '}
+            <strong className="text-slate-800">
+              {totalRecords === 0 ? 0 : startIndex + 1}–{Math.min(endIndex, totalRecords)}
+            </strong>{' '}
+            of <strong className="text-slate-800">{totalRecords}</strong>
+          </p>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              &lt; Previous
+            </button>
+
+            <span className="text-xs font-semibold text-slate-600">
+              Page {currentPage} of {totalPages || 1}
+            </span>
+
+            <button
+              type="button"
+              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages || totalPages === 0}
+              className="px-3.5 py-1.5 text-xs font-semibold rounded-lg text-white bg-[#1E2B58] hover:bg-[#162044] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-xs"
+            >
+              Next &gt;
+            </button>
+          </div>
         </div>
       </div>
     </div>
