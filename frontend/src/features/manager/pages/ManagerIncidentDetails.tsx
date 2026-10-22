@@ -1127,177 +1127,311 @@ export const ManagerIncidentDetails: React.FC = () => {
 
 
       {/* ── TAB 3: ACTIONS & CONTROLS (CAPA) ───────────────────────────────── */}
-      {/* Three sections:
-           A) CAPA creator form
-           B) CAPA action register table with two-person verification buttons
-           C) Risk control (barrier) creator form + controls summary table */}
+      {/* Three clinical governance sections:
+           Section A: CAPA Action Creator Form (Corrective vs. Preventive)
+           Section B: CAPA Action Register Ledger with Two-Person Verification Gate
+           Section C: Risk Barrier Defense & Systemic Controls (Swiss Cheese Model) */}
       {activeTab === 'capa' && (
         <div className="space-y-6">
-          {/* Section A: CAPA Creator – form for adding a new corrective or preventive action */}
-          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-slate-800">
-              Section A: Corrective & Preventive Action Creator
-            </h3>
-            <form onSubmit={handleCreateCapa} className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Action Title</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Implement dual-signoff policy"
-                  value={capaForm.title}
-                  onChange={(e) => setCapaForm({ ...capaForm, title: e.target.value })}
-                  className="w-full p-2 border border-slate-300 rounded"
-                  required
-                />
+          {/* ── SECTION A: CAPA CREATOR FORM ─────────────────────────────────── */}
+          <div className="bg-white border border-slate-200/90 rounded-xl p-6 shadow-xs space-y-5">
+            {/* Clinical Section Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-2">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-[#1E2B58]/10 text-[#1E2B58] flex items-center justify-center font-bold shadow-xs">
+                  <CheckSquare className="w-5 h-5 text-[#1E2B58]" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800 tracking-tight">
+                    Section A: Corrective & Preventive Action Creator (CAPA)
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Formulate structured remediations, assign departmental accountability, and schedule compliance deadlines.
+                  </p>
+                </div>
               </div>
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Action Type</label>
-                <select
-                  value={capaForm.actionType}
-                  onChange={(e) =>
-                    setCapaForm({ ...capaForm, actionType: e.target.value as CapaType })
-                  }
-                  className="w-full p-2 border border-slate-300 rounded bg-white"
-                >
-                  <option value="CORRECTIVE">Corrective Action</option>
-                  <option value="PREVENTIVE">Preventive Action</option>
-                </select>
+              <span className="self-start sm:self-auto inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200/80">
+                ISO 9001 / JCI Quality Standard
+              </span>
+            </div>
+            {/* Form Fields Grid */}
+            <form onSubmit={handleCreateCapa} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                {/* Action Title */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1.5">
+                    Action Title <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Implement dual-signoff policy for IV infusions"
+                    value={capaForm.title}
+                    onChange={(e) => setCapaForm({ ...capaForm, title: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E2B58]/20 focus:border-[#1E2B58] transition-all"
+                    required
+                  />
+                </div>
+                {/* Action Type: Corrective vs Preventive */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1.5">
+                    Action Classification <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={capaForm.actionType}
+                    onChange={(e) =>
+                      setCapaForm({ ...capaForm, actionType: e.target.value as CapaType })
+                    }
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1E2B58]/20 focus:border-[#1E2B58] transition-all"
+                  >
+                    <option value="CORRECTIVE">Corrective Action (Immediate Remediation)</option>
+                    <option value="PREVENTIVE">Preventive Action (Systemic Risk Elimination)</option>
+                  </select>
+                </div>
+                {/* Priority Selection */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1.5">
+                    Action Priority <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={capaForm.priority}
+                    onChange={(e) =>
+                      setCapaForm({ ...capaForm, priority: e.target.value as CapaPriority })
+                    }
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1E2B58]/20 focus:border-[#1E2B58] transition-all"
+                  >
+                    <option value="LOW">Low – Routine Process Improvement</option>
+                    <option value="MEDIUM">Medium – Standard Remedial Target</option>
+                    <option value="HIGH">High – Urgent Clinical Safety Risk</option>
+                    <option value="CRITICAL">Critical – Immediate Patient Safety Barrier</option>
+                  </select>
+                </div>
+                {/* Due Date */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1.5">
+                    Target Completion Date <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={capaForm.dueDate}
+                    onChange={(e) => setCapaForm({ ...capaForm, dueDate: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1E2B58]/20 focus:border-[#1E2B58] transition-all"
+                    required
+                  />
+                </div>
+                {/* Designated Action Owner (Department Staff Dropdown) */}
+                <div className="md:col-span-2">
+                  <label className="block font-semibold text-slate-700 mb-1.5">
+                    Designated Action Owner <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={capaForm.actionOwnerId}
+                    onChange={(e) =>
+                      setCapaForm({ ...capaForm, actionOwnerId: Number(e.target.value) })
+                    }
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1E2B58]/20 focus:border-[#1E2B58] transition-all"
+                    required
+                  >
+                    <option value="">-- Assign Responsible Department Member --</option>
+                    {team.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} — ({u.role.replace('_', ' ')})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {/* Detailed Description */}
+                <div className="md:col-span-3">
+                  <label className="block font-semibold text-slate-700 mb-1.5">
+                    Mandatory Implementation Steps & Expected Deliverables <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="Provide precise clinical instructions, protocol modifications, or technical verifications required to complete this action..."
+                    value={capaForm.description}
+                    onChange={(e) => setCapaForm({ ...capaForm, description: e.target.value })}
+                    className="w-full px-3 py-2.5 text-xs border border-slate-300 rounded-lg bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E2B58]/20 focus:border-[#1E2B58] transition-all leading-relaxed"
+                    required
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Priority</label>
-                <select
-                  value={capaForm.priority}
-                  onChange={(e) =>
-                    setCapaForm({ ...capaForm, priority: e.target.value as CapaPriority })
-                  }
-                  className="w-full p-2 border border-slate-300 rounded bg-white"
-                >
-                  <option value="LOW">Low</option>
-                  <option value="MEDIUM">Medium</option>
-                  <option value="HIGH">High</option>
-                  <option value="CRITICAL">Critical</option>
-                </select>
-              </div>
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Due Date</label>
-                <input
-                  type="date"
-                  value={capaForm.dueDate}
-                  onChange={(e) => setCapaForm({ ...capaForm, dueDate: e.target.value })}
-                  className="w-full p-2 border border-slate-300 rounded"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Designated Action Owner</label>
-                <select
-                  value={capaForm.actionOwnerId}
-                  onChange={(e) =>
-                    setCapaForm({ ...capaForm, actionOwnerId: Number(e.target.value) })
-                  }
-                  className="w-full p-2 border border-slate-300 rounded bg-white"
-                  required
-                >
-                  <option value="">-- Select Action Owner --</option>
-                  {team.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name} ({u.role})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="md:col-span-3">
-                <label className="block font-semibold text-slate-700 mb-1">Detailed Description</label>
-                <textarea
-                  rows={2}
-                  placeholder="Detail the mandatory implementation steps..."
-                  value={capaForm.description}
-                  onChange={(e) => setCapaForm({ ...capaForm, description: e.target.value })}
-                  className="w-full p-2 border border-slate-300 rounded"
-                  required
-                />
-              </div>
-              <div className="md:col-span-3 flex justify-end">
+              {/* Form Submission Button */}
+              <div className="flex justify-end pt-2 border-t border-slate-100">
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded font-medium hover:bg-indigo-700"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#1E2B58] text-white text-xs font-semibold rounded-lg hover:bg-[#162144] active:bg-[#0f172a] disabled:opacity-50 transition-colors shadow-xs"
                 >
-                  Create CAPA Action
+                  <CheckSquare className="w-3.5 h-3.5 text-emerald-400" />
+                  {isSubmitting ? 'Registering Action...' : 'Create CAPA Action'}
                 </button>
               </div>
             </form>
           </div>
-
-          {/* Section B: CAPA Action Register Table
-               Lists all existing CAPA actions with their owner, due date, status, and
-               verification state. Each row has Verify / Return Revision buttons for
-               the manager to perform two-person verification (Gate 1 dependency). */}
-          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-slate-800">
-              Section B: CAPA Action Register & Two-Person Verification
-            </h3>
+          {/* ── SECTION B: CAPA ACTION REGISTER & TWO-PERSON VERIFICATION ───── */}
+          <div className="bg-white border border-slate-200/90 rounded-xl p-6 shadow-xs space-y-4">
+            {/* Header with Verification Progress Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-[#1E2B58]/10 text-[#1E2B58] flex items-center justify-center font-bold shadow-xs">
+                  <ShieldAlert className="w-5 h-5 text-[#1E2B58]" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800 tracking-tight">
+                    Section B: CAPA Action Register & Two-Person Verification
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Enforces the Four-Eyes Principle. Action Owners complete tasks, but only the Department Manager can independently verify execution for Gate 1 closure.
+                  </p>
+                </div>
+              </div>
+              {/* Gate 1 Compliance Meter Pill */}
+              {incident.capaActions && incident.capaActions.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
+                      isGate1Satisfied
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                    }`}
+                  >
+                    {isGate1Satisfied ? (
+                      <>
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Gate 1 Verified (Ready)
+                      </>
+                    ) : (
+                      <>
+                        <Clock className="w-3.5 h-3.5 text-amber-600" /> Gate 1 Pending Sign-offs
+                      </>
+                    )}
+                  </span>
+                </div>
+              )}
+            </div>
+            {/* CAPA Table Ledger */}
             {incident.capaActions && incident.capaActions.length > 0 ? (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto rounded-lg border border-slate-200">
                 <table className="w-full text-xs text-left border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-600">
-                      <th className="p-3">Title & Type</th>
-                      <th className="p-3">Owner</th>
-                      <th className="p-3">Due Date</th>
-                      <th className="p-3">Status</th>
-                      <th className="p-3">Verification</th>
-                      <th className="p-3 text-right">Manager Verification Actions</th>
+                    <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 text-[11px] font-semibold tracking-wider uppercase">
+                      <th className="py-3 px-3.5">Action Title & Classification</th>
+                      <th className="py-3 px-3.5">Assigned Owner</th>
+                      <th className="py-3 px-3.5">Target Due Date</th>
+                      <th className="py-3 px-3.5">Execution Status</th>
+                      <th className="py-3 px-3.5">Manager Verification</th>
+                      <th className="py-3 px-3.5 text-right">Independent Sign-off</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {incident.capaActions.map((action) => (
-                      <tr key={action.id} className="hover:bg-slate-50">
-                        <td className="p-3 font-medium text-slate-800">
-                          {action.title}
-                          <span className="block text-[10px] text-slate-500">{action.actionType}</span>
+                      <tr key={action.id} className="hover:bg-slate-50/70 transition-colors">
+                        {/* Title, Classification, and Priority */}
+                        <td className="py-3 px-3.5">
+                          <div className="font-semibold text-slate-900 leading-snug">
+                            {action.title}
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <span
+                              className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                                action.actionType === 'CORRECTIVE'
+                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                  : 'bg-purple-50 text-purple-700 border-purple-200'
+                              }`}
+                            >
+                              {action.actionType}
+                            </span>
+                            <span
+                              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                                action.priority === 'CRITICAL'
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : action.priority === 'HIGH'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : 'bg-slate-100 text-slate-700'
+                              }`}
+                            >
+                              {action.priority}
+                            </span>
+                          </div>
+                          {action.description && (
+                            <p className="text-[11px] text-slate-500 mt-1 line-clamp-1 italic">
+                              "{action.description}"
+                            </p>
+                          )}
                         </td>
-                        <td className="p-3">{action.actionOwner?.name}</td>
-                        <td className="p-3">{new Date(action.dueDate).toLocaleDateString()}</td>
-                        <td className="p-3">
+                        {/* Owner details */}
+                        <td className="py-3 px-3.5">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-full bg-slate-100 border border-slate-200 text-slate-600 flex items-center justify-center font-bold text-[10px]">
+                              {action.actionOwner?.name?.charAt(0) || 'U'}
+                            </div>
+                            <div>
+                              <div className="font-medium text-slate-800">{action.actionOwner?.name || 'Unassigned'}</div>
+                              <div className="text-[10px] text-slate-400 capitalize">
+                                {action.actionOwner?.role?.replace('_', ' ').toLowerCase()}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        {/* Due Date with Calendar format */}
+                        <td className="py-3 px-3.5 font-medium text-slate-700">
+                          {new Date(action.dueDate).toLocaleDateString(undefined, {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                        </td>
+                        {/* Execution Status badge */}
+                        <td className="py-3 px-3.5">
                           <span
-                            className={`px-2 py-0.5 rounded font-semibold ${
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
                               action.status === 'COMPLETED'
-                                ? 'bg-emerald-100 text-emerald-800'
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                                 : action.status === 'IN_PROGRESS'
-                                ? 'bg-blue-100 text-blue-800'
-                                : 'bg-slate-100 text-slate-700'
+                                ? 'bg-blue-50 text-blue-800 border-blue-200'
+                                : 'bg-slate-100 text-slate-700 border-slate-200'
                             }`}
                           >
                             {action.status}
                           </span>
                         </td>
-                        <td className="p-3">
+                        {/* Verification badge */}
+                        <td className="py-3 px-3.5">
                           {action.isVerified ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold">
-                              <CheckCircle className="w-3.5 h-3.5" /> Verified
-                            </span>
+                            <div className="space-y-0.5">
+                              <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold text-xs bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Verified
+                              </span>
+                              {action.verifiedAt && (
+                                <div className="text-[10px] text-slate-400">
+                                  {new Date(action.verifiedAt).toLocaleDateString()}
+                                </div>
+                              )}
+                            </div>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-amber-700 font-semibold">
-                              <Clock className="w-3.5 h-3.5" /> Unverified
+                            <span className="inline-flex items-center gap-1 text-amber-700 font-medium text-xs bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                              <Clock className="w-3.5 h-3.5 text-amber-600" /> Pending Sign-off
                             </span>
                           )}
                         </td>
-                        <td className="p-3 text-right space-x-2">
-                          <button
-                            onClick={() => handleVerifyAction(action.id, 'VERIFY')}
-                            disabled={isSubmitting}
-                            className="px-2.5 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700"
-                          >
-                            Verify (Green)
-                          </button>
-                          <button
-                            onClick={() => handleVerifyAction(action.id, 'REVISE')}
-                            disabled={isSubmitting}
-                            className="px-2.5 py-1 bg-amber-600 text-white rounded hover:bg-amber-700"
-                          >
-                            Return Revision
-                          </button>
+                        {/* Sign-off Actions (Verify / Return Revision) */}
+                        <td className="py-3 px-3.5 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleVerifyAction(action.id, 'VERIFY')}
+                              disabled={isSubmitting}
+                              title="Sign off and verify completion of this CAPA action"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/90 rounded-md transition-colors disabled:opacity-50"
+                            >
+                              <CheckCircle className="w-3 h-3 text-emerald-600" /> Verify
+                            </button>
+                            <button
+                              onClick={() => handleVerifyAction(action.id, 'REVISE')}
+                              disabled={isSubmitting}
+                              title="Request corrective rework with mandatory clinical feedback notes"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200/90 rounded-md transition-colors disabled:opacity-50"
+                            >
+                              <AlertCircle className="w-3 h-3 text-amber-600" /> Revise
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1305,140 +1439,232 @@ export const ManagerIncidentDetails: React.FC = () => {
                 </table>
               </div>
             ) : (
-              <p className="text-xs text-slate-500 italic">No CAPA actions registered yet.</p>
+              <div className="flex flex-col items-center justify-center p-8 bg-slate-50/50 rounded-lg border border-dashed border-slate-200 text-center">
+                <CheckSquare className="w-8 h-8 text-slate-300 mb-2" />
+                <p className="text-xs font-medium text-slate-600">No CAPA actions registered yet</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Use Section A above to establish clinical corrective and preventive tasks.
+                </p>
+              </div>
             )}
           </div>
-
-          {/* Section C: Risk Controls & Improvement Plan
-               Form to log a barrier control (e.g. barcode scanning, dual-signoff protocol).
-               Below the form, existing controls are listed in a summary table.           */}
-          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-slate-800">
-              Section C: Controls & Risk Improvement Plan
-            </h3>
-            <form onSubmit={handleCreateControl} className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Control Type</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Barcode Medication Verification"
-                  value={controlForm.controlType}
-                  onChange={(e) => setControlForm({ ...controlForm, controlType: e.target.value })}
-                  className="w-full p-2 border border-slate-300 rounded"
-                  required
-                />
+          {/* ── SECTION C: RISK CONTROLS & IMPROVEMENT PLAN ─────────────────── */}
+          <div className="bg-white border border-slate-200/90 rounded-xl p-6 shadow-xs space-y-5">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-2">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-[#1E2B58]/10 text-[#1E2B58] flex items-center justify-center font-bold shadow-xs">
+                  <ShieldAlert className="w-5 h-5 text-[#1E2B58]" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800 tracking-tight">
+                    Section C: Risk Barrier Controls & Improvement Plan
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Engineered & procedural barriers based on the Swiss Cheese Model. Gate 2 requires all barrier controls to reach Verified status.
+                  </p>
+                </div>
               </div>
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Effectiveness</label>
-                <select
-                  value={controlForm.effectiveness}
-                  onChange={(e) =>
-                    setControlForm({
-                      ...controlForm,
-                      effectiveness: e.target.value as ControlEffectiveness,
-                    })
-                  }
-                  className="w-full p-2 border border-slate-300 rounded bg-white"
-                >
-                  <option value="EFFECTIVE">Effective</option>
-                  <option value="PARTIALLY_EFFECTIVE">Partially Effective</option>
-                  <option value="INEFFECTIVE">Ineffective</option>
-                </select>
+              <span className="self-start sm:self-auto inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200/80">
+                Swiss Cheese Barrier Defense
+              </span>
+            </div>
+            {/* Barrier Form */}
+            <form onSubmit={handleCreateControl} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                {/* Control Type */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1.5">
+                    Barrier Control Type <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Barcode Medication Verification, EHR Hard-Stop"
+                    value={controlForm.controlType}
+                    onChange={(e) => setControlForm({ ...controlForm, controlType: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E2B58]/20 focus:border-[#1E2B58] transition-all"
+                    required
+                  />
+                </div>
+                {/* Barrier Effectiveness */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1.5">
+                    Barrier Effectiveness <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={controlForm.effectiveness}
+                    onChange={(e) =>
+                      setControlForm({
+                        ...controlForm,
+                        effectiveness: e.target.value as ControlEffectiveness,
+                      })
+                    }
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1E2B58]/20 focus:border-[#1E2B58] transition-all"
+                  >
+                    <option value="EFFECTIVE">Effective (Zero latent breaches detected)</option>
+                    <option value="PARTIALLY_EFFECTIVE">Partially Effective (Workarounds possible)</option>
+                    <option value="INEFFECTIVE">Ineffective (Complete barrier breach observed)</option>
+                  </select>
+                </div>
+                {/* Control Status */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1.5">
+                    Implementation Status <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={controlForm.status}
+                    onChange={(e) =>
+                      setControlForm({ ...controlForm, status: e.target.value as ControlStatus })
+                    }
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1E2B58]/20 focus:border-[#1E2B58] transition-all"
+                  >
+                    <option value="PLANNED">Planned (Scheduled for engineering rollout)</option>
+                    <option value="IN_PROGRESS">In Progress (Active pilot / installation)</option>
+                    <option value="VERIFIED">Verified (Validated operational barrier)</option>
+                  </select>
+                </div>
+                {/* Target Date */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1.5">
+                    Target Verification Date <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={controlForm.targetDate}
+                    onChange={(e) => setControlForm({ ...controlForm, targetDate: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1E2B58]/20 focus:border-[#1E2B58] transition-all"
+                    required
+                  />
+                </div>
+                {/* Failure Reason */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1.5">
+                    Failure Mode / Latent Defect <span className="text-slate-400 font-normal">(Optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Alert fatigue caused clinical bypass"
+                    value={controlForm.failureReason}
+                    onChange={(e) => setControlForm({ ...controlForm, failureReason: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E2B58]/20 focus:border-[#1E2B58] transition-all"
+                  />
+                </div>
+                {/* Required Improvement */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1.5">
+                    Engineered Improvement Fix <span className="text-slate-400 font-normal">(Optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Implement strict hard-stop biometric check"
+                    value={controlForm.requiredImprovement}
+                    onChange={(e) =>
+                      setControlForm({ ...controlForm, requiredImprovement: e.target.value })
+                    }
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E2B58]/20 focus:border-[#1E2B58] transition-all"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Control Status</label>
-                <select
-                  value={controlForm.status}
-                  onChange={(e) =>
-                    setControlForm({ ...controlForm, status: e.target.value as ControlStatus })
-                  }
-                  className="w-full p-2 border border-slate-300 rounded bg-white"
-                >
-                  <option value="PLANNED">Planned</option>
-                  <option value="IN_PROGRESS">In Progress</option>
-                  <option value="VERIFIED">Verified</option>
-                </select>
-              </div>
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Target Date</label>
-                <input
-                  type="date"
-                  value={controlForm.targetDate}
-                  onChange={(e) => setControlForm({ ...controlForm, targetDate: e.target.value })}
-                  className="w-full p-2 border border-slate-300 rounded"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Failure Reason (if any)</label>
-                <input
-                  type="text"
-                  placeholder="Why did barrier fail?"
-                  value={controlForm.failureReason}
-                  onChange={(e) => setControlForm({ ...controlForm, failureReason: e.target.value })}
-                  className="w-full p-2 border border-slate-300 rounded"
-                />
-              </div>
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Required Improvement</label>
-                <input
-                  type="text"
-                  placeholder="Engineered barrier fixes"
-                  value={controlForm.requiredImprovement}
-                  onChange={(e) =>
-                    setControlForm({ ...controlForm, requiredImprovement: e.target.value })
-                  }
-                  className="w-full p-2 border border-slate-300 rounded"
-                />
-              </div>
-              <div className="md:col-span-3 flex justify-end">
+              {/* Submit Control Button */}
+              <div className="flex justify-end pt-2 border-t border-slate-100">
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded font-medium hover:bg-indigo-700"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#1E2B58] text-white text-xs font-semibold rounded-lg hover:bg-[#162144] active:bg-[#0f172a] disabled:opacity-50 transition-colors shadow-xs"
                 >
-                  Add Risk Control
+                  <ShieldAlert className="w-3.5 h-3.5 text-blue-300" />
+                  {isSubmitting ? 'Logging Barrier...' : 'Add Risk Control'}
                 </button>
               </div>
             </form>
-
+            {/* Barrier Controls Summary Table */}
             {incident.controls && incident.controls.length > 0 && (
-              <div className="mt-4 border-t border-slate-100 pt-4">
-                <table className="w-full text-xs text-left">
-                  <thead>
-                    <tr className="text-slate-500 border-b border-slate-200">
-                      <th className="py-2">Control Type</th>
-                      <th className="py-2">Effectiveness</th>
-                      <th className="py-2">Status</th>
-                      <th className="py-2">Target Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {incident.controls.map((c) => (
-                      <tr key={c.id} className="border-b border-slate-100">
-                        <td className="py-2 font-medium">{c.controlType}</td>
-                        <td className="py-2">{c.effectiveness}</td>
-                        <td className="py-2">
-                          <span
-                            className={`px-2 py-0.5 rounded font-semibold ${
-                              c.status === 'VERIFIED'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-amber-100 text-amber-800'
-                            }`}
-                          >
-                            {c.status}
-                          </span>
-                        </td>
-                        <td className="py-2">{new Date(c.targetDate).toLocaleDateString()}</td>
+              <div className="mt-4 pt-4 border-t border-slate-100">
+                <h4 className="text-xs font-bold text-slate-700 mb-2.5">
+                  Logged Barrier Controls ({incident.controls.length})
+                </h4>
+                <div className="overflow-x-auto rounded-lg border border-slate-200">
+                  <table className="w-full text-xs text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 text-[11px] font-semibold tracking-wider uppercase">
+                        <th className="py-2.5 px-3">Control Barrier Type</th>
+                        <th className="py-2.5 px-3">Effectiveness Level</th>
+                        <th className="py-2.5 px-3">Barrier Status</th>
+                        <th className="py-2.5 px-3">Target Date</th>
+                        <th className="py-2.5 px-3">Defect & Improvement</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {incident.controls.map((c) => (
+                        <tr key={c.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-2.5 px-3 font-semibold text-slate-800">
+                            {c.controlType}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                c.effectiveness === 'EFFECTIVE'
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                  : c.effectiveness === 'PARTIALLY_EFFECTIVE'
+                                  ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                  : 'bg-rose-50 text-rose-800 border-rose-200'
+                              }`}
+                            >
+                              {c.effectiveness.replace('_', ' ')}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+                                c.status === 'VERIFIED'
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                  : 'bg-amber-50 text-amber-800 border-amber-200'
+                              }`}
+                            >
+                              {c.status === 'VERIFIED' ? (
+                                <CheckCircle className="w-3 h-3 text-emerald-600" />
+                              ) : (
+                                <Clock className="w-3 h-3 text-amber-600" />
+                              )}
+                              {c.status}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-600 font-medium">
+                            {new Date(c.targetDate).toLocaleDateString(undefined, {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                            })}
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-500 text-[11px]">
+                            {c.failureReason || c.requiredImprovement ? (
+                              <div>
+                                {c.failureReason && (
+                                  <div>
+                                    <span className="font-semibold text-slate-700">Failure:</span> {c.failureReason}
+                                  </div>
+                                )}
+                                {c.requiredImprovement && (
+                                  <div>
+                                    <span className="font-semibold text-slate-700">Fix:</span> {c.requiredImprovement}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 italic">None noted</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </div>
         </div>
       )}
+
 
       {/* ── TAB 4: REVIEW & CLOSURE (THE GOVERNANCE GATE) ───────────────────── */}
       {/* Three sections:
