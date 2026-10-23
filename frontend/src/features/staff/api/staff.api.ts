@@ -177,35 +177,19 @@ export const saveStaffDraft = async (data: Record<string, any>): Promise<{ draft
 
 /**
  * Submit formal incident report with evidence attachments
- * Calls POST /api/staff/incidents with fallback to POST /api/incidents
+ * Calls the canonical POST /api/incidents endpoint.
  */
 export const submitStaffIncident = async (formData: FormData): Promise<Incident> => {
-  try {
-    const response = await apiClient.post<{ success: boolean; message: string; incident: Incident }>(
-      `${API_URL}/incidents`,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      }
-    );
-    return response.data.incident;
-  } catch (err: any) {
-    if (err.response?.status === 404) {
-      const fallbackResponse = await apiClient.post<{ success: boolean; message: string; incident: Incident }>(
-        '/incidents',
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        }
-      );
-      return fallbackResponse.data.incident;
+  const response = await apiClient.post<{ success: boolean; message: string; incident: Incident }>(
+    '/incidents',
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
     }
-    throw err;
-  }
+  );
+  return response.data.incident;
 };
 
 // Helper to format raw incident list to Staff summary metrics
@@ -250,35 +234,45 @@ const formatRawListToStaffData = (rawList: any[]): StaffIncidentsResponseData =>
   };
 };
 
-/**
- * Fetch staff incidents with lightweight summary
- * Strictly calls GET /staff/incidents, with fallback to GET /incidents/my
- */
-export const getMyIncidents = async (): Promise<StaffIncidentsResponseData> => {
-  try {
-    const response = await apiClient.get<any>(`${API_URL}/incidents`);
-    if (response.data?.data?.items && response.data?.data?.summary) {
-      return response.data.data;
-    }
-    if (Array.isArray(response.data?.data)) {
-      return formatRawListToStaffData(response.data.data);
-    }
-  } catch {
-    try {
-      const fallbackRes = await apiClient.get<any>('/incidents/my');
-      if (fallbackRes.data?.data?.items && fallbackRes.data?.data?.summary) {
-        return fallbackRes.data.data;
-      }
-      if (Array.isArray(fallbackRes.data?.data)) {
-        return formatRawListToStaffData(fallbackRes.data.data);
-      }
-    } catch {}
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const isStaffIncidentsResponseData = (
+  value: unknown
+): value is StaffIncidentsResponseData => {
+  if (!isObject(value) || !isObject(value.summary) || !Array.isArray(value.items)) {
+    return false;
   }
 
-  return {
-    summary: { total: 0, open: 0, inProgress: 0, closed: 0 },
-    items: [],
-  };
+  const summary = value.summary;
+  return (
+    typeof summary.total === 'number' &&
+    typeof summary.open === 'number' &&
+    typeof summary.inProgress === 'number' &&
+    typeof summary.closed === 'number'
+  );
+};
+
+/**
+ * Fetch incidents reported by the authenticated staff member.
+ * The backend returns summary and items at GET /incidents/my.
+ */
+export const getMyIncidents = async (): Promise<StaffIncidentsResponseData> => {
+  const response = await apiClient.get<ApiResponse<StaffIncidentsResponseData | Incident[]>>(
+    '/incidents/my',
+    { headers: { 'Cache-Control': 'no-cache' } }
+  );
+  const payload: unknown = response.data.data;
+
+  if (isStaffIncidentsResponseData(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload)) {
+    return formatRawListToStaffData(payload);
+  }
+
+  throw new Error('The server returned an invalid staff incident response.');
 };
 
 export const staffApi = {

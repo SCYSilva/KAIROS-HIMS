@@ -10,7 +10,6 @@ import {
   FileText,
   Calendar,
   ChevronRight,
-  Filter,
   CheckCircle2,
   FileEdit,
   RotateCcw,
@@ -22,16 +21,16 @@ import {
 import {
   investigationApi,
   type InvestigationStatus,
-  type InvestigationDashboardItem,
 } from '../api/investigation.api';
 
 // ── Enterprise Clinical Color Tokens ─────────────────────────────────────────
-const NAVY = '#0F1E42';
+const NAVY = '#1E2B5E';
+const NAVY_SOFT = '#192651';
 const BORDER = '#D8DCE8';
 const TEXT = '#1A2447';
+const BODY = '#3B4565';
 const MUTED = '#6B7494';
 const SURFACE = '#FFFFFF';
-const BG_PAGE = '#F8FAFC';
 
 const InvestigatorDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -53,34 +52,45 @@ const InvestigatorDashboard: React.FC = () => {
     queryFn: () => investigationApi.dashboard(params),
   });
 
-  const getStatusBadge = (st: InvestigationStatus) => {
+  const summary = data?.summary ?? {
+    total: 0,
+    drafts: 0,
+    revision: 0,
+    submitted: 0,
+    overdue: 0,
+  };
+  const items = data?.items ?? [];
+
+  const getStatusPill = (st: InvestigationStatus) => {
+    const base =
+      'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border whitespace-nowrap';
     switch (st) {
       case 'DRAFT':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300">
-            <FileEdit className="w-3.5 h-3.5" />
-            DRAFT
+          <span className={`${base} bg-slate-50 text-slate-600 border-slate-200`}>
+            <FileEdit className="w-3 h-3" />
+            Draft
           </span>
         );
       case 'REVISION_REQUESTED':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 animate-pulse">
-            <RotateCcw className="w-3.5 h-3.5" />
-            REVISION REQUESTED
+          <span className={`${base} bg-amber-50 text-amber-700 border-amber-200`}>
+            <RotateCcw className="w-3 h-3" />
+            Revision
           </span>
         );
       case 'SUBMITTED':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-100 text-blue-900 border border-blue-300">
-            <Send className="w-3.5 h-3.5" />
-            SUBMITTED
+          <span className={`${base} bg-sky-50 text-sky-700 border-sky-200`}>
+            <Send className="w-3 h-3" />
+            Submitted
           </span>
         );
       case 'APPROVED':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-100 text-emerald-900 border border-emerald-300">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            APPROVED
+          <span className={`${base} bg-emerald-50 text-emerald-700 border-emerald-200`}>
+            <CheckCircle2 className="w-3 h-3" />
+            Approved
           </span>
         );
       default:
@@ -88,20 +98,22 @@ const InvestigatorDashboard: React.FC = () => {
     }
   };
 
-  const getSeverityBadge = (sev: string) => {
-    switch (sev) {
-      case 'CRITICAL':
-        return 'bg-red-50 text-red-700 border-red-300 font-bold';
-      case 'HIGH':
-        return 'bg-orange-50 text-orange-700 border-orange-300 font-semibold';
-      case 'MEDIUM':
-        return 'bg-amber-50 text-amber-700 border-amber-300 font-semibold';
-      case 'LOW':
-        return 'bg-emerald-50 text-emerald-700 border-emerald-300 font-semibold';
-      default:
-        return 'bg-slate-50 text-slate-700 border-slate-300';
-    }
+  const getSeverityPill = (sev: string) => {
+    const map: Record<string, string> = {
+      CRITICAL: 'bg-red-50 text-red-700 border-red-200',
+      HIGH: 'bg-orange-50 text-orange-700 border-orange-200',
+      MEDIUM: 'bg-amber-50 text-amber-700 border-amber-200',
+      LOW: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    };
+    return `${map[sev] ?? 'bg-slate-50 text-slate-600 border-slate-200'}`;
   };
+
+  const filterStyle = {
+    borderColor: BORDER,
+    color: TEXT,
+  };
+  const filterClass =
+    'w-full rounded-lg border bg-white px-3 py-2.5 text-[13px] transition-all focus:outline-none focus:ring-2 focus:ring-[#1E2B5E]';
 
   if (isLoading) {
     return (
@@ -119,7 +131,7 @@ const InvestigatorDashboard: React.FC = () => {
 
   if (isError) {
     return (
-      <div className="p-6 rounded-2xl border border-red-200 bg-red-50 text-red-900 space-y-2">
+      <div className="p-6 rounded-xl border border-red-200 bg-red-50 text-red-900 space-y-2">
         <div className="flex items-center gap-2 font-bold text-red-700">
           <AlertTriangle className="w-5 h-5" />
           <span>Clinical Investigation Console Offline</span>
@@ -131,76 +143,47 @@ const InvestigatorDashboard: React.FC = () => {
     );
   }
 
-  const summary = data?.summary ?? {
-    total: 0,
-    drafts: 0,
-    revision: 0,
-    submitted: 0,
-    overdue: 0,
-  };
-
-  const items: InvestigationDashboardItem[] = data?.items ?? [];
+  const kpis = [
+    { label: 'Total', value: summary.total, alert: false },
+    { label: 'Drafts', value: summary.drafts, alert: false },
+    { label: 'Revision', value: summary.revision, alert: summary.revision > 0 },
+    { label: 'Submitted', value: summary.submitted, alert: false },
+    { label: 'Overdue', value: summary.overdue, alert: summary.overdue > 0 },
+  ];
 
   return (
-    <div className="space-y-6 pb-12" style={{ backgroundColor: BG_PAGE }}>
-      {/* ── 1. Executive Console Header with 5 Clinical KPIs ─────────────────── */}
+    <div className="space-y-6 pb-12">
+      {/* ── Console Header & KPI Strip ─────────────────────────────────────── */}
       <header
-        className="rounded-2xl p-6 sm:p-8 text-white shadow-md relative overflow-hidden"
-        style={{
-          backgroundColor: NAVY,
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-        }}
+        className="rounded-2xl px-6 py-6 sm:px-7 sm:py-7 text-white shadow-sm"
+        style={{ backgroundColor: NAVY, border: `1px solid ${NAVY_SOFT}` }}
       >
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 relative z-10">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-white/10 text-white/90 border border-white/15 mb-3">
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              Clinical Governance & Root Cause Console
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/55">
+          Investigation Workspace
+        </p>
+
+        <div className="mt-2 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+          <div className="max-w-xl">
+            <h1 className="text-[26px] sm:text-[30px] font-extrabold tracking-tight leading-tight">
               Investigator Dashboard
             </h1>
-            <p className="mt-1 text-sm text-slate-300 max-w-2xl leading-relaxed">
-              Conduct structured root-cause governance, interview witnesses, document evidence,
-              and submit formal clinical findings for Manager review.
+            <p className="mt-2 text-[13px] leading-relaxed text-white/70">
+              Review assigned cases, save a draft, and submit findings for Manager review.
             </p>
           </div>
 
-          {/* 5 KPI Badges */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 sm:gap-3 w-full lg:w-auto">
-            {[
-              {
-                label: 'Total Assigned',
-                value: summary.total,
-                accent: 'bg-white/10 text-white',
-              },
-              {
-                label: 'Drafts in Progress',
-                value: summary.drafts,
-                accent: 'bg-white/10 text-slate-200',
-              },
-              {
-                label: 'Returned for Revision',
-                value: summary.revision,
-                accent: summary.revision > 0 ? 'bg-amber-500/25 text-amber-300 border border-amber-400/30' : 'bg-white/10 text-slate-200',
-              },
-              {
-                label: 'Submitted to Manager',
-                value: summary.submitted,
-                accent: 'bg-white/10 text-slate-200',
-              },
-              {
-                label: 'Overdue Cases',
-                value: summary.overdue,
-                accent: summary.overdue > 0 ? 'bg-red-500/25 text-red-300 border border-red-400/30 font-bold' : 'bg-white/10 text-slate-200',
-              },
-            ].map((kpi) => (
-              <div
-                key={kpi.label}
-                className={`rounded-xl px-3.5 py-3 text-center transition-all ${kpi.accent}`}
-              >
-                <div className="text-2xl font-extrabold leading-none">{kpi.value}</div>
-                <div className="text-[10px] uppercase font-bold tracking-wider opacity-80 mt-1.5">
+          {/* 5 KPI metrics — value above label, right aligned */}
+          <div className="flex flex-wrap items-start gap-x-7 gap-y-4 lg:pt-0.5">
+            {kpis.map((kpi) => (
+              <div key={kpi.label} className="text-center min-w-[52px]">
+                <div
+                  className={`text-2xl font-extrabold leading-none ${
+                    kpi.alert ? 'text-amber-300' : 'text-white'
+                  }`}
+                >
+                  {kpi.value}
+                </div>
+                <div className="mt-1.5 text-[9px] font-bold uppercase tracking-[0.14em] text-white/55">
                   {kpi.label}
                 </div>
               </div>
@@ -209,215 +192,214 @@ const InvestigatorDashboard: React.FC = () => {
         </div>
       </header>
 
-      {/* ── 2. Filter Toolbar ──────────────────────────────────────────────── */}
+      {/* ── Filter Toolbar ─────────────────────────────────────────────────── */}
       <section
-        className="rounded-2xl p-4 sm:p-5 shadow-sm"
-        style={{
-          backgroundColor: SURFACE,
-          border: `1.5px solid ${BORDER}`,
-        }}
+        className="rounded-xl p-3 sm:p-3.5 shadow-sm"
+        style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }}
       >
-        <div className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">
-          <Filter className="w-3.5 h-3.5" />
-          Filter Investigation Queue
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* Search */}
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto_auto] gap-2.5">
           <div className="relative">
-            <Search className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
-              type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search title, category, location…"
-              className="w-full pl-9 pr-3 py-2.5 rounded-xl text-sm border focus:ring-2 focus:ring-[#0F1E42] focus:outline-none transition-all"
-              style={{ borderColor: BORDER, color: TEXT }}
+              className={`${filterClass} pl-9`}
+              style={filterStyle}
             />
           </div>
 
-          {/* Investigation State */}
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value as InvestigationStatus | '')}
-            className="w-full px-3 py-2.5 rounded-xl text-sm border focus:ring-2 focus:ring-[#0F1E42] focus:outline-none transition-all cursor-pointer bg-white"
-            style={{ borderColor: BORDER, color: TEXT }}
+            className={`${filterClass} md:w-52 cursor-pointer`}
+            style={filterStyle}
           >
             <option value="">All investigation states</option>
-            <option value="DRAFT">DRAFT</option>
-            <option value="REVISION_REQUESTED">REVISION REQUESTED</option>
-            <option value="SUBMITTED">SUBMITTED</option>
-            <option value="APPROVED">APPROVED</option>
+            <option value="DRAFT">Draft</option>
+            <option value="REVISION_REQUESTED">Revision requested</option>
+            <option value="SUBMITTED">Submitted</option>
+            <option value="APPROVED">Approved</option>
           </select>
 
-          {/* Severity */}
           <select
             value={severity}
             onChange={(e) => setSeverity(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-xl text-sm border focus:ring-2 focus:ring-[#0F1E42] focus:outline-none transition-all cursor-pointer bg-white"
-            style={{ borderColor: BORDER, color: TEXT }}
+            className={`${filterClass} md:w-44 cursor-pointer`}
+            style={filterStyle}
           >
             <option value="">All severities</option>
-            <option value="LOW">LOW</option>
-            <option value="MEDIUM">MEDIUM</option>
-            <option value="HIGH">HIGH</option>
-            <option value="CRITICAL">CRITICAL</option>
+            <option value="LOW">Low</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="HIGH">High</option>
+            <option value="CRITICAL">Critical</option>
           </select>
 
-          {/* Target Due Date */}
           <select
             value={due}
-            onChange={(e) => setDue(e.target.value as any)}
-            className="w-full px-3 py-2.5 rounded-xl text-sm border focus:ring-2 focus:ring-[#0F1E42] focus:outline-none transition-all cursor-pointer bg-white"
-            style={{ borderColor: BORDER, color: TEXT }}
+            onChange={(e) => setDue(e.target.value as typeof due)}
+            className={`${filterClass} md:w-44 cursor-pointer`}
+            style={filterStyle}
           >
-            <option value="">All target dates</option>
-            <option value="OVERDUE">Overdue cases</option>
-            <option value="NEXT_7_DAYS">Due next 7 days</option>
-            <option value="NO_DATE">No target date set</option>
+            <option value="">All due dates</option>
+            <option value="OVERDUE">Overdue</option>
+            <option value="NEXT_7_DAYS">Next 7 days</option>
+            <option value="NO_DATE">No date set</option>
           </select>
         </div>
       </section>
 
-      {/* ── 3. Assigned Queue Cards ────────────────────────────────────────── */}
-      <section
-        className="rounded-2xl overflow-hidden shadow-sm"
-        style={{
-          backgroundColor: SURFACE,
-          border: `1.5px solid ${BORDER}`,
-        }}
-      >
-        <div className="p-5 border-b flex items-center justify-between" style={{ borderColor: BORDER }}>
+      {/* ── Assigned Investigation Queue ───────────────────────────────────── */}
+      <section>
+        <div className="flex items-end justify-between gap-4 mb-3.5">
           <div>
-            <h2 className="text-base sm:text-lg font-bold" style={{ color: TEXT }}>
+            <h2 className="text-lg font-bold tracking-tight" style={{ color: TEXT }}>
               Assigned Investigation Queue
             </h2>
-            <p className="text-xs sm:text-sm mt-0.5" style={{ color: MUTED }}>
-              Incidents assigned to you for root cause determination and clinical evidence governance.
+            <p className="text-[13px] mt-0.5" style={{ color: MUTED }}>
+              Incidents currently assigned to you
             </p>
           </div>
-          <span className="text-xs font-semibold px-3 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+          <span
+            className="text-[11px] font-bold px-2.5 py-1 rounded-full border"
+            style={{ backgroundColor: '#F1F3F8', color: BODY, borderColor: BORDER }}
+          >
             {items.length} {items.length === 1 ? 'case' : 'cases'}
           </span>
         </div>
 
-        {items.length === 0 ? (
-          <div className="p-16 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3 text-slate-400">
-              <CheckCircle2 className="w-7 h-7" />
+        <div
+          className="rounded-xl overflow-hidden shadow-sm"
+          style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }}
+        >
+          {items.length === 0 ? (
+            <div className="p-14 text-center">
+              <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center mx-auto mb-3 text-slate-400">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <h3 className="text-sm font-bold" style={{ color: TEXT }}>
+                No assigned incidents found
+              </h3>
+              <p className="text-[13px] mt-1 max-w-md mx-auto" style={{ color: MUTED }}>
+                Adjust the filters above or await assignment from your Department Manager.
+              </p>
             </div>
-            <h3 className="text-base font-bold" style={{ color: TEXT }}>
-              No assigned incidents found
-            </h3>
-            <p className="text-sm mt-1 max-w-md mx-auto" style={{ color: MUTED }}>
-              No cases match your active filters. Clear search or check back when department managers
-              assign new investigations.
-            </p>
-          </div>
-        ) : (
-          <div className="divide-y" style={{ borderColor: BORDER }}>
-            {items.map((item) => {
-              const inc = item.incident;
-              const isOverdue = item.overdue;
-
-              return (
-                <div
-                  key={item.id}
-                  onClick={() => navigate(`/investigator/${item.incidentId}`)}
-                  className="p-5 sm:p-6 transition-all hover:bg-slate-50 cursor-pointer group"
-                >
-                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                    {/* Main Incident Details */}
-                    <div className="space-y-2.5 flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs font-extrabold px-2.5 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
-                          #{inc.id}
-                        </span>
-                        <h3 className="text-base sm:text-lg font-bold group-hover:text-blue-700 transition-colors truncate" style={{ color: TEXT }}>
-                          {inc.title}
-                        </h3>
-                        {getStatusBadge(item.status)}
-                        {isOverdue && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-extrabold bg-red-100 text-red-800 border border-red-300">
-                            <Clock className="w-3 h-3" />
-                            OVERDUE
+          ) : (
+            <div className="divide-y" style={{ borderColor: BORDER }}>
+              {items.map((item) => {
+                const inc = item.incident;
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => navigate(`/investigator/${item.incidentId}`)}
+                    className="px-5 py-4 sm:px-6 sm:py-5 transition-colors hover:bg-slate-50 cursor-pointer group"
+                  >
+                    <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        {/* Reference chip + title + status */}
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          <span
+                            className="text-[11px] font-extrabold px-2 py-0.5 rounded"
+                            style={{ backgroundColor: '#F1F3F8', color: BODY, border: `1px solid ${BORDER}` }}
+                          >
+                            #{inc.id}
                           </span>
-                        )}
-                      </div>
+                          <h3
+                            className="text-[15px] font-bold truncate group-hover:text-[#2952C4] transition-colors"
+                            style={{ color: TEXT }}
+                          >
+                            {inc.title}
+                          </h3>
+                          {getStatusPill(item.status)}
+                          {item.overdue && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-red-50 text-red-700 border border-red-200">
+                              <Clock className="w-3 h-3" />
+                              Overdue
+                            </span>
+                          )}
+                        </div>
 
-                      {/* Clinical Metadata */}
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs" style={{ color: MUTED }}>
-                        <span className="inline-flex items-center gap-1">
-                          <Tag className="w-3.5 h-3.5 text-slate-400" />
-                          <strong className="text-slate-700 font-semibold">{inc.category}</strong>
-                        </span>
-                        <span>•</span>
-                        <span className="inline-flex items-center gap-1">
-                          <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{inc.location}</span>
-                        </span>
-                        <span>•</span>
-                        <span className="inline-flex items-center gap-1">
-                          <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{inc.department?.name ?? 'Department'}</span>
-                        </span>
-                      </div>
-
-                      {/* Entity Counters Chips */}
-                      <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 font-medium">
-                          <Users className="w-3 h-3 text-slate-500" />
-                          Team ({item._count.teamMembers})
-                        </span>
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 font-medium">
-                          <Layers className="w-3 h-3 text-slate-500" />
-                          Factors ({item._count.contributingFactors})
-                        </span>
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 font-medium">
-                          <FileText className="w-3 h-3 text-slate-500" />
-                          Evidence ({item._count.evidence})
-                        </span>
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 font-medium">
-                          <Calendar className="w-3 h-3 text-slate-500" />
-                          Timeline ({item._count.timeline})
-                        </span>
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 font-medium">
-                          Revision ({item.revisionNumber})
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Right Severity & Action Column */}
-                    <div className="flex items-center lg:flex-col lg:items-end justify-between gap-3 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
-                      <div className="flex items-center gap-2 lg:flex-col lg:items-end">
-                        <span
-                          className={`px-3 py-1 rounded-md text-xs border tracking-wider ${getSeverityBadge(
-                            inc.severity
-                          )}`}
+                        {/* Metadata row */}
+                        <div
+                          className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]"
+                          style={{ color: MUTED }}
                         >
-                          {inc.severity} SEVERITY
-                        </span>
-                        <div className="text-xs text-slate-500 flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5 text-slate-400" />
-                          <span>
+                          <span className="inline-flex items-center gap-1.5">
+                            <Tag className="w-3.5 h-3.5 text-slate-400" />
+                            <span className="font-semibold" style={{ color: BODY }}>
+                              {inc.category}
+                            </span>
+                          </span>
+                          <span className="text-slate-300">•</span>
+                          <span className="inline-flex items-center gap-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                            {inc.location}
+                          </span>
+                          <span className="text-slate-300">•</span>
+                          <span className="inline-flex items-center gap-1.5">
+                            <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                            {inc.department?.name ?? 'Department'}
+                          </span>
+                          <span className="text-slate-300">•</span>
+                          <span className="inline-flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-slate-400" />
                             Target:{' '}
                             {item.endDate
                               ? new Date(item.endDate).toLocaleDateString()
                               : 'Not scheduled'}
                           </span>
                         </div>
+
+                        {/* Sub-entity counters */}
+                        <div className="flex flex-wrap items-center gap-2 pt-0.5 text-[11px]">
+                          {[
+                            { icon: Users, label: 'Team', value: item._count.teamMembers },
+                            { icon: Layers, label: 'Factors', value: item._count.contributingFactors },
+                            { icon: FileText, label: 'Evidence', value: item._count.evidence },
+                            { icon: Calendar, label: 'Timeline', value: item._count.timeline },
+                          ].map((chip) => (
+                            <span
+                              key={chip.label}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-medium"
+                              style={{ backgroundColor: '#F7F8FA', color: BODY, border: `1px solid ${BORDER}` }}
+                            >
+                              <chip.icon className="w-3 h-3 text-slate-400" />
+                              {chip.label} {chip.value}
+                            </span>
+                          ))}
+                          <span
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-medium"
+                            style={{ backgroundColor: '#F7F8FA', color: BODY, border: `1px solid ${BORDER}` }}
+                          >
+                            Revision {item.revisionNumber}
+                          </span>
+                        </div>
                       </div>
 
-                      <div className="flex items-center text-xs font-bold text-[#0F1E42] group-hover:translate-x-0.5 transition-transform">
-                        <span>Open Workspace</span>
-                        <ChevronRight className="w-4 h-4 ml-0.5" />
+                      {/* Severity + CTA */}
+                      <div className="flex items-center lg:flex-col lg:items-end gap-3 shrink-0">
+                        <span
+                          className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border ${getSeverityPill(
+                            inc.severity
+                          )}`}
+                        >
+                          {inc.severity}
+                        </span>
+                        <span
+                          className="inline-flex items-center text-[12px] font-bold transition-transform group-hover:translate-x-0.5"
+                          style={{ color: NAVY }}
+                        >
+                          Open
+                          <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
+                        </span>
                       </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                );
+              })}
+            </div>
+          )}
+        </div>
       </section>
     </div>
   );

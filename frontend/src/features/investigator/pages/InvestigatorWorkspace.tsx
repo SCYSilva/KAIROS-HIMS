@@ -10,30 +10,28 @@ import {
   Trash2,
   Lock,
   RotateCcw,
-  CheckCircle2,
   AlertCircle,
-  Layers,
-  Users,
-  Compass,
-  Paperclip,
-  Bookmark,
   Check,
   Send,
   Save,
+  Link2,
+  Sparkles,
+  ArrowUpRight,
 } from 'lucide-react';
 import {
   investigationApi,
   type InvestigationMethod,
 } from '../api/investigation.api';
 
-
 // ── Enterprise Clinical Color Tokens ─────────────────────────────────────────
-const NAVY = '#0F1E42';
+const NAVY = '#1E2B5E';
+const NAVY_SOFT = '#192651';
 const BORDER = '#D8DCE8';
 const TEXT = '#1A2447';
+const BODY = '#3B4565';
 const MUTED = '#6B7494';
 const SURFACE = '#FFFFFF';
-const BG_PAGE = '#F8FAFC';
+const ROYAL = '#2952C4';
 
 const METHODS: Array<{ value: InvestigationMethod; label: string }> = [
   { value: 'FIVE_WHYS', label: '5 Whys Analysis' },
@@ -54,32 +52,37 @@ const ROOT_CAUSE_CATEGORIES = [
   'Documentation & Electronic Records',
 ];
 
+const METHOD_LABEL: Record<InvestigationMethod, string> = {
+  FIVE_WHYS: 'FIVE WHYS',
+  FISHBONE: 'FISHBONE',
+  FAULT_TREE: 'FAULT TREE',
+  TIMELINE_ANALYSIS: 'TIMELINE ANALYSIS',
+  OTHER: 'OTHER',
+};
+
 const Panel: React.FC<{
   title: string;
   subtitle?: string;
-  icon?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
-}> = ({ title, subtitle, icon, children, className = '' }) => (
+  actions?: React.ReactNode;
+}> = ({ title, subtitle, children, className = '', actions }) => (
   <section
-    className={`rounded-2xl p-6 shadow-sm transition-all ${className}`}
-    style={{
-      backgroundColor: SURFACE,
-      border: `1.5px solid ${BORDER}`,
-    }}
+    className={`rounded-xl p-5 sm:p-6 shadow-sm ${className}`}
+    style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }}
   >
-    <div className="flex items-start gap-3 mb-5 border-b pb-4" style={{ borderColor: BORDER }}>
-      {icon && <div className="p-2 rounded-xl bg-slate-100 text-[#0F1E42] mt-0.5">{icon}</div>}
+    <div className="flex items-start justify-between gap-4 mb-5">
       <div>
-        <h2 className="text-base sm:text-lg font-bold tracking-tight" style={{ color: TEXT }}>
+        <h2 className="text-[15px] sm:text-base font-bold tracking-tight" style={{ color: TEXT }}>
           {title}
         </h2>
         {subtitle && (
-          <p className="text-xs sm:text-sm mt-0.5" style={{ color: MUTED }}>
+          <p className="text-[12px] mt-0.5 leading-relaxed" style={{ color: MUTED }}>
             {subtitle}
           </p>
         )}
       </div>
+      {actions}
     </div>
     {children}
   </section>
@@ -92,12 +95,7 @@ const InvestigatorWorkspace: React.FC = () => {
   const queryClient = useQueryClient();
 
   // ── Queries ────────────────────────────────────────────────────────────────
-  const {
-    data: record,
-    isLoading,
-    isError,
-    error,
-  } = useQuery({
+  const { data: record, isLoading, isError, error } = useQuery({
     queryKey: ['investigation-workspace', incidentId],
     queryFn: () => investigationApi.workspace(incidentId),
     enabled: Number.isInteger(incidentId) && incidentId > 0,
@@ -112,6 +110,12 @@ const InvestigatorWorkspace: React.FC = () => {
   const { data: decisionSupport } = useQuery({
     queryKey: ['investigation-decision-support', incidentId],
     queryFn: () => investigationApi.decisionSupport(incidentId),
+    enabled: !!record,
+  });
+
+  const { data: queue } = useQuery({
+    queryKey: ['investigation-dashboard', 'related'],
+    queryFn: () => investigationApi.dashboard(),
     enabled: !!record,
   });
 
@@ -133,7 +137,6 @@ const InvestigatorWorkspace: React.FC = () => {
   const [factors, setFactors] = useState<Array<{ category: string; description: string }>>([]);
   const [newFactor, setNewFactor] = useState({ category: '', description: '' });
 
-  // Sub-entity inputs
   const [teamInput, setTeamInput] = useState({ userId: '', role: 'Co-Investigator' });
   const [witnessInput, setWitnessInput] = useState({
     name: '',
@@ -153,6 +156,7 @@ const InvestigatorWorkspace: React.FC = () => {
     reference: '',
     notes: '',
   });
+  const [linkInput, setLinkInput] = useState({ targetIncidentId: '', reason: '' });
 
   // ── Synchronize with loaded record ─────────────────────────────────────────
   useEffect(() => {
@@ -204,19 +208,21 @@ const InvestigatorWorkspace: React.FC = () => {
     });
   };
 
+  // ── Draft Payload ──────────────────────────────────────────────────────────
+  const draftPayload = () => ({
+    ...draft,
+    startDate: draft.startDate || null,
+    endDate: draft.endDate || null,
+    method: draft.method || null,
+    methodOther: draft.method === 'OTHER' ? draft.methodOther : null,
+    rootCauseMethod: draft.rootCauseMethod || null,
+    contributingFactors: factors,
+  });
+
   // ── Save Draft Action ──────────────────────────────────────────────────────
   const handleSaveDraft = (notify = true) => {
     run(
-      () =>
-        investigationApi.saveDraft(incidentId, {
-          ...draft,
-          startDate: draft.startDate || null,
-          endDate: draft.endDate || null,
-          method: draft.method || null,
-          methodOther: draft.method === 'OTHER' ? draft.methodOther : null,
-          rootCauseMethod: draft.rootCauseMethod || null,
-          contributingFactors: factors,
-        }),
+      () => investigationApi.saveDraft(incidentId, draftPayload()),
       notify ? 'Draft saved successfully (Incident state preserved)' : undefined
     );
   };
@@ -229,54 +235,64 @@ const InvestigatorWorkspace: React.FC = () => {
     }
 
     run(
-      () => investigationApi.submit(incidentId),
+      async () => {
+        await investigationApi.saveDraft(incidentId, draftPayload());
+        return investigationApi.submit(incidentId);
+      },
       record?.status === 'REVISION_REQUESTED'
         ? 'Revised findings successfully submitted for Manager review.'
         : 'Investigation successfully submitted to Manager.'
     );
   };
 
+  // ── Decision Support Feedback ──────────────────────────────────────────────
+  const handleMethodSuggestion = (method: InvestigationMethod, action: 'ACCEPTED' | 'DISMISSED') => {
+    run(
+      () =>
+        investigationApi.feedback(incidentId, {
+          feature: 'METHOD_SUGGESTION',
+          resultKey: method,
+          action,
+          modelVersion: decisionSupport?.modelVersion ?? 'clinical-decision-support-v1.0',
+        }),
+      action === 'ACCEPTED' ? 'Suggested methodology applied to draft.' : 'Suggestion dismissed.'
+    );
+
+    if (action === 'ACCEPTED') {
+      setDraft((current) => ({ ...current, method }));
+      toast.success(`Method set to ${METHOD_LABEL[method]}. Remember to save the draft.`);
+    }
+  };
+
   // ── Readiness Checklist Calculation ────────────────────────────────────────
   const readiness = useMemo(() => {
     const checks = [
-      {
-        id: 'start_date',
-        label: 'Investigation start date specified',
-        ready: Boolean(draft.startDate),
-      },
+      { id: 'start_date', label: 'Investigation start date specified', ready: Boolean(draft.startDate) },
       {
         id: 'method',
-        label: 'Clinical investigation methodology selected',
+        label: 'Investigation methodology selected',
         ready: Boolean(draft.method && (draft.method !== 'OTHER' || draft.methodOther.trim())),
       },
       {
         id: 'findings',
-        label: 'Comprehensive findings narrative documented (min 20 chars)',
+        label: 'Findings narrative documented (min 20 chars)',
         ready: Boolean(draft.findingsSummary && draft.findingsSummary.trim().length >= 20),
       },
-      {
-        id: 'factors',
-        label: 'At least 1 contributing factor recorded',
-        ready: factors.length > 0,
-      },
+      { id: 'factors', label: 'At least 1 contributing factor recorded', ready: factors.length > 0 },
       {
         id: 'rca_category',
-        label: 'Root cause category and sub-category categorized',
+        label: 'Root-cause category and sub-category categorized',
         ready: Boolean(draft.rootCauseCategory.trim() && draft.rootCauseSubcategory.trim()),
       },
-      {
-        id: 'rca_method',
-        label: 'Root cause analysis method chosen',
-        ready: Boolean(draft.rootCauseMethod),
-      },
+      { id: 'rca_method', label: 'Root-cause analysis method chosen', ready: Boolean(draft.rootCauseMethod) },
       {
         id: 'rca_statement',
-        label: 'Evidence-based root cause statement documented (min 20 chars)',
+        label: 'Root-cause statement documented (min 20 chars)',
         ready: Boolean(draft.rootCauseDescription && draft.rootCauseDescription.trim().length >= 20),
       },
       {
         id: 'rca_detail',
-        label: 'In-depth causal reasoning analysis logged (min 20 chars)',
+        label: 'In-depth causal reasoning logged (min 20 chars)',
         ready: Boolean(draft.rootCauseDetail && draft.rootCauseDetail.trim().length >= 20),
       },
     ];
@@ -309,7 +325,7 @@ const InvestigatorWorkspace: React.FC = () => {
 
   if (isError || !record) {
     return (
-      <div className="p-8 rounded-2xl border border-red-200 bg-red-50 text-red-900 space-y-4 text-center max-w-xl mx-auto my-12">
+      <div className="p-8 rounded-xl border border-red-200 bg-red-50 text-red-900 space-y-4 text-center max-w-xl mx-auto my-12">
         <AlertCircle className="w-10 h-10 mx-auto text-red-600" />
         <h2 className="text-xl font-bold">Investigation Record Inaccessible</h2>
         <p className="text-sm text-red-600">
@@ -319,7 +335,8 @@ const InvestigatorWorkspace: React.FC = () => {
         </p>
         <button
           onClick={() => navigate('/investigator')}
-          className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-[#0F1E42] hover:bg-slate-800 transition-colors cursor-pointer"
+          className="px-5 py-2.5 rounded-lg text-sm font-bold text-white transition-colors cursor-pointer"
+          style={{ backgroundColor: NAVY }}
         >
           Return to Dashboard
         </button>
@@ -328,172 +345,189 @@ const InvestigatorWorkspace: React.FC = () => {
   }
 
   const isLocked = ['SUBMITTED', 'APPROVED'].includes(record.status);
+  const overdue =
+    !isLocked && !!record.endDate && new Date(record.endDate).getTime() < Date.now();
   const inc = record.incident;
+  const relatedCandidates = (queue?.items ?? []).filter((x) => x.incidentId !== incidentId);
+  const similarIncidents = decisionSupport?.similarIncidents ?? [];
+  const methodSuggestions = decisionSupport?.methodSuggestions ?? [];
 
-  const inputStyle = `w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-[#0F1E42] disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed`;
+  const inputStyle =
+    'w-full rounded-lg border bg-white px-3 py-2.5 text-[13px] transition-all focus:outline-none focus:ring-2 focus:ring-[#1E2B5E] disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed';
+  const labelStyle = 'block text-[10px] font-bold uppercase tracking-[0.12em] mb-1.5';
+  const btnNavy =
+    'inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-[12px] font-bold text-white transition-colors disabled:opacity-40 cursor-pointer';
+  const btnOutline =
+    'inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-[12px] font-bold transition-colors cursor-pointer border';
 
   return (
-    <div className="space-y-6 pb-16" style={{ backgroundColor: BG_PAGE }}>
-      {/* ── Top Navigation Bar ─────────────────────────────────────────────── */}
+    <div className="space-y-6 pb-12">
+      {/* ── Back navigation ────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <button
           onClick={() => navigate('/investigator')}
-          className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-[#0F1E42] hover:text-blue-700 transition-colors cursor-pointer"
+          className="inline-flex items-center gap-2 text-[12px] font-bold transition-colors cursor-pointer"
+          style={{ color: NAVY }}
         >
           <ArrowLeft className="w-4 h-4" />
           Back to Assigned Investigation Queue
         </button>
 
-        <div className="flex items-center gap-2">
-          {!isLocked && (
-            <button
-              onClick={() => handleSaveDraft(true)}
-              disabled={mutation.isPending}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold border border-slate-300 bg-white hover:bg-slate-50 transition-colors text-slate-800 shadow-sm cursor-pointer disabled:opacity-50"
-            >
-              <Save className="w-4 h-4 text-slate-600" />
-              Save Draft
-            </button>
-          )}
-        </div>
+        {!isLocked && (
+          <button
+            onClick={() => handleSaveDraft(true)}
+            disabled={mutation.isPending}
+            className={`${btnOutline} bg-white hover:bg-slate-50 disabled:opacity-50`}
+            style={{ borderColor: BORDER, color: BODY }}
+          >
+            <Save className="w-4 h-4" />
+            Save Draft
+          </button>
+        )}
       </div>
 
-      {/* ── Header & Clinical Context ──────────────────────────────────────── */}
+      {/* ── Investigation Header ───────────────────────────────────────────── */}
       <header
-        className="rounded-2xl p-6 sm:p-8 text-white shadow-md relative overflow-hidden"
-        style={{
-          backgroundColor: NAVY,
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-        }}
+        className="rounded-2xl px-6 py-7 sm:px-7 text-white shadow-sm"
+        style={{ backgroundColor: NAVY, border: `1px solid ${NAVY_SOFT}` }}
       >
-        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
-          <div className="space-y-2 max-w-3xl">
-            <div className="flex flex-wrap items-center gap-2.5 text-xs font-bold uppercase tracking-wider text-slate-300">
-              <span className="px-2.5 py-1 rounded bg-white/10 border border-white/15">
-                Investigation #{record.id}
-              </span>
-              <span>•</span>
-              <span className="px-2.5 py-1 rounded bg-white/10 border border-white/15">
-                Incident #{inc.id}
-              </span>
-              <span>•</span>
-              <span className="text-slate-300">Revision {record.revisionNumber}</span>
-            </div>
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/55">
+          Investigation #{record.id} &nbsp;•&nbsp; Incident #{inc.id}
+        </p>
 
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight pt-1">
-              {inc.title}
-            </h1>
-            <p className="text-sm text-slate-200 leading-relaxed max-w-2xl">
-              {inc.description}
-            </p>
-          </div>
+        <h1 className="mt-2 text-[24px] sm:text-[28px] font-extrabold tracking-tight leading-tight">
+          {inc.title}
+        </h1>
 
-          <div className="flex flex-col items-start lg:items-end gap-2.5">
-            <div className="flex items-center gap-2">
-              <span className="px-3 py-1 rounded-md text-xs font-bold bg-white/15 border border-white/20 tracking-wider">
-                {record.status.replaceAll('_', ' ')}
-              </span>
-              <span
-                className={`px-3 py-1 rounded-md text-xs font-extrabold tracking-wider ${
-                  inc.severity === 'CRITICAL'
-                    ? 'bg-red-500 text-white'
-                    : inc.severity === 'HIGH'
-                    ? 'bg-orange-500 text-white'
-                    : 'bg-white/20 text-white'
-                }`}
-              >
-                {inc.severity} SEVERITY
-              </span>
-            </div>
-            <div className="text-xs text-slate-300 flex items-center gap-1">
-              <Clock className="w-3.5 h-3.5" />
-              <span>
-                Target Completion:{' '}
-                {record.endDate ? new Date(record.endDate).toLocaleDateString() : 'Unscheduled'}
-              </span>
-            </div>
-          </div>
+        <p className="mt-2.5 text-[13px] leading-relaxed text-white/70 max-w-4xl">
+          {inc.description}
+        </p>
+
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <span className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-[0.14em] bg-white/12 border border-white/20">
+            {record.status.replaceAll('_', ' ')}
+          </span>
+          {overdue && (
+            <span className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-[0.14em] bg-red-500/25 border border-red-400/40 text-red-200">
+              Overdue
+            </span>
+          )}
+        </div>
+
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] font-semibold text-white/55">
+          <span>Revision {record.revisionNumber}</span>
+          <span className="text-white/25">•</span>
+          <span
+            className={
+              inc.severity === 'CRITICAL'
+                ? 'text-red-300 font-bold'
+                : inc.severity === 'HIGH'
+                ? 'text-orange-300 font-bold'
+                : 'text-white/70'
+            }
+          >
+            {inc.severity}
+          </span>
+          <span className="text-white/25">•</span>
+          <span className="inline-flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5" />
+            Target completion:{' '}
+            {record.endDate ? new Date(record.endDate).toLocaleDateString() : 'Unscheduled'}
+          </span>
         </div>
       </header>
 
-      {/* ── Status Banners: Revision Requested / Locked ───────────────────── */}
+      {/* ── Revision / Lock Banner ─────────────────────────────────────────── */}
       {record.status === 'REVISION_REQUESTED' && (
-        <div className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-950 flex items-start gap-3 shadow-sm">
-          <div className="p-2 rounded-xl bg-amber-100 text-amber-800 mt-0.5">
-            <RotateCcw className="w-5 h-5" />
-          </div>
-          <div className="space-y-1">
-            <h3 className="font-extrabold text-sm sm:text-base text-amber-900">
-              Department Manager Requested Revisions (Revision #{record.revisionNumber})
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 flex items-start gap-3">
+          <RotateCcw className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+          <div>
+            <h3 className="text-[13px] font-bold text-amber-900">
+              Revision requested — Revision #{record.revisionNumber}
             </h3>
-            <p className="text-xs sm:text-sm text-amber-800 leading-relaxed">
-              <strong>Manager Feedback:</strong>{' '}
+            <p className="text-[12px] text-amber-800 leading-relaxed mt-0.5">
+              <span className="font-semibold">Manager feedback:</span>{' '}
               {inc.investigationReviewComment ||
                 'The findings require clarification or additional evidence prior to sign-off.'}
-            </p>
-            <p className="text-xs text-amber-700 pt-1 font-medium">
-              Update the investigation findings below and submit through the submission gate when complete.
             </p>
           </div>
         </div>
       )}
 
       {isLocked && (
-        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-blue-950 flex items-start gap-3 shadow-sm">
-          <div className="p-2 rounded-xl bg-blue-100 text-[#0F1E42] mt-0.5">
-            <Lock className="w-5 h-5" />
-          </div>
-          <div className="space-y-1">
-            <h3 className="font-extrabold text-sm sm:text-base text-[#0F1E42]">
-              {record.status === 'APPROVED'
-                ? 'Clinical Findings Approved & Locked'
-                : 'Investigation Submitted for Review (Read-Only)'}
-            </h3>
-            <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
-              {record.status === 'APPROVED'
-                ? 'Department Management has verified and closed this investigation. Findings are permanently archived for clinical audit.'
-                : 'This investigation is currently pending review by the Department Manager. Editing is restricted unless returned for revision.'}
-            </p>
-          </div>
+        <div
+          className="rounded-xl px-5 py-4 flex items-start gap-3 shadow-sm"
+          style={{ backgroundColor: '#F1F3F8', border: `1px solid ${BORDER}` }}
+        >
+          <Lock className="w-4 h-4 shrink-0 mt-0.5" style={{ color: MUTED }} />
+          <p className="text-[12px] leading-relaxed" style={{ color: BODY }}>
+            {record.status === 'APPROVED'
+              ? 'Approved findings are locked. Draft controls are read-only until a revision is requested.'
+              : 'Findings have been submitted and are pending Manager review. Draft controls are read-only until returned for revision.'}
+          </p>
         </div>
       )}
 
-      {/* ── Clinical Incident Metadata Grid ─────────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* ── Incident Context ───────────────────────────────────────────────── */}
+      <section
+        className="rounded-xl grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x shadow-sm"
+        style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}`, borderColor: BORDER }}
+      >
         {[
-          { label: 'Primary Reporter', value: inc.reporter?.name ?? 'Anonymous Staff', sub: inc.reporter?.email },
-          { label: 'Department of Origin', value: inc.department?.name ?? 'N/A', sub: `Incident Category: ${inc.category}` },
-          { label: 'Exact Incident Location', value: inc.location, sub: `Logged: ${new Date(inc.createdAt).toLocaleString()}` },
+          {
+            label: 'Reporter',
+            value: inc.reporter?.name ?? 'Anonymous Staff',
+            sub: inc.reporter?.email,
+          },
+          {
+            label: 'Department',
+            value: inc.department?.name ?? 'N/A',
+            sub: `Category: ${inc.category}`,
+          },
+          {
+            label: 'Location',
+            value: inc.location,
+            sub: `Logged: ${new Date(inc.createdAt).toLocaleString()}`,
+          },
         ].map((meta) => (
-          <div
-            key={meta.label}
-            className="rounded-2xl p-4 shadow-sm"
-            style={{
-              backgroundColor: SURFACE,
-              border: `1.5px solid ${BORDER}`,
-            }}
-          >
-            <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: MUTED }}>
+          <div key={meta.label} className="px-5 py-4" style={{ borderColor: BORDER }}>
+            <span className={labelStyle} style={{ color: MUTED }}>
               {meta.label}
             </span>
-            <div className="text-sm font-extrabold mt-1 truncate" style={{ color: TEXT }}>
+            <div className="text-[13px] font-bold truncate" style={{ color: TEXT }}>
               {meta.value}
             </div>
-            {meta.sub && <div className="text-xs text-slate-400 mt-0.5 truncate">{meta.sub}</div>}
+            {meta.sub && (
+              <div className="text-[11px] mt-0.5 truncate" style={{ color: MUTED }}>
+                {meta.sub}
+              </div>
+            )}
           </div>
         ))}
-      </div>
+      </section>
 
-      {/* ── Section 1: Investigation Plan & Findings ───────────────────────── */}
+      {/* ── Investigation Plan & Draft ─────────────────────────────────────── */}
       <Panel
-        title="Section 1: Investigation Plan & Clinical Narrative"
-        subtitle="Establish the timeframe, analytical methodology, and structured findings without changing incident status"
-        icon={<Compass className="w-5 h-5" />}
+        title="Investigation Plan & Draft"
+        subtitle="Save incomplete work without advancing incident state"
+        actions={
+          !isLocked ? (
+            <button
+              onClick={() => handleSaveDraft(true)}
+              disabled={mutation.isPending}
+              className={btnNavy}
+              style={{ backgroundColor: NAVY }}
+            >
+              <Save className="w-3.5 h-3.5" />
+              Save Draft
+            </button>
+          ) : undefined
+        }
       >
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider mb-1.5" style={{ color: TEXT }}>
-              Investigation Start Date *
+            <label className={labelStyle} style={{ color: TEXT }}>
+              Start date <span className="text-red-500">*</span>
             </label>
             <input
               type="date"
@@ -501,13 +535,13 @@ const InvestigatorWorkspace: React.FC = () => {
               value={draft.startDate}
               onChange={(e) => setDraft({ ...draft, startDate: e.target.value })}
               className={inputStyle}
-              style={{ borderColor: BORDER }}
+              style={{ borderColor: BORDER, color: TEXT }}
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider mb-1.5" style={{ color: TEXT }}>
-              Target Completion Date
+            <label className={labelStyle} style={{ color: TEXT }}>
+              Target / end date
             </label>
             <input
               type="date"
@@ -515,22 +549,20 @@ const InvestigatorWorkspace: React.FC = () => {
               value={draft.endDate}
               onChange={(e) => setDraft({ ...draft, endDate: e.target.value })}
               className={inputStyle}
-              style={{ borderColor: BORDER }}
+              style={{ borderColor: BORDER, color: TEXT }}
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider mb-1.5" style={{ color: TEXT }}>
-              Analytical Methodology *
+            <label className={labelStyle} style={{ color: TEXT }}>
+              Investigation method <span className="text-red-500">*</span>
             </label>
             <select
               disabled={isLocked}
               value={draft.method}
-              onChange={(e) =>
-                setDraft({ ...draft, method: e.target.value as InvestigationMethod })
-              }
-              className={inputStyle}
-              style={{ borderColor: BORDER }}
+              onChange={(e) => setDraft({ ...draft, method: e.target.value as InvestigationMethod | '' })}
+              className={`${inputStyle} cursor-pointer`}
+              style={{ borderColor: BORDER, color: TEXT }}
             >
               <option value="">Select clinical method…</option>
               {METHODS.map((m) => (
@@ -542,75 +574,65 @@ const InvestigatorWorkspace: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider mb-1.5" style={{ color: TEXT }}>
-              Specify Other Method
+            <label className={labelStyle} style={{ color: TEXT }}>
+              Other method
             </label>
             <input
               type="text"
               disabled={isLocked || draft.method !== 'OTHER'}
+              placeholder="Specify methodology"
               value={draft.methodOther}
               onChange={(e) => setDraft({ ...draft, methodOther: e.target.value })}
-              placeholder={draft.method === 'OTHER' ? 'Name methodology…' : 'Select OTHER to enable'}
               className={inputStyle}
-              style={{ borderColor: BORDER }}
+              style={{ borderColor: BORDER, color: TEXT }}
             />
           </div>
 
-          <div className="col-span-1 md:col-span-2 lg:col-span-4">
-            <label className="block text-xs font-bold uppercase tracking-wider mb-1.5" style={{ color: TEXT }}>
-              Findings Summary (Rich Clinical Narrative) *
+          <div className="md:col-span-2 lg:col-span-4">
+            <label className={labelStyle} style={{ color: TEXT }}>
+              Findings summary <span className="text-red-500">*</span>
             </label>
             <textarea
               rows={4}
               disabled={isLocked}
+              placeholder="Objective, factual observations supported by clinical records…"
               value={draft.findingsSummary}
               onChange={(e) => setDraft({ ...draft, findingsSummary: e.target.value })}
-              placeholder="Provide a thorough, clinical narrative detailing what happened, operational context, human factors, and key observations…"
-              className={`${inputStyle} resize-y leading-relaxed`}
-              style={{ borderColor: BORDER }}
+              className={`${inputStyle} resize-y`}
+              style={{ borderColor: BORDER, color: TEXT }}
             />
-            <div className="flex justify-between items-center text-xs mt-1 text-slate-400">
-              <span>Objective, factual observations supported by clinical records.</span>
-              <span className={draft.findingsSummary.length >= 20 ? 'text-emerald-600 font-bold' : 'text-amber-600 font-medium'}>
-                {draft.findingsSummary.length} characters (min 20)
+            <div className="flex items-center justify-between mt-1.5">
+              <span className="text-[11px]" style={{ color: MUTED }}>
+                Objective, factual observations supported by clinical records.
+              </span>
+              <span
+                className={`text-[11px] font-semibold ${
+                  draft.findingsSummary.trim().length >= 20 ? 'text-emerald-600' : 'text-amber-600'
+                }`}
+              >
+                {draft.findingsSummary.trim().length} characters (min 20)
               </span>
             </div>
           </div>
         </div>
-
-        {!isLocked && (
-          <div className="mt-4 pt-4 border-t flex justify-end" style={{ borderColor: BORDER }}>
-            <button
-              type="button"
-              onClick={() => handleSaveDraft(true)}
-              disabled={mutation.isPending}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-[#0F1E42] hover:bg-slate-800 transition-colors shadow-sm cursor-pointer disabled:opacity-50"
-            >
-              <Save className="w-4 h-4" />
-              Save Section 1 Draft
-            </button>
-          </div>
-        )}
       </Panel>
 
-      {/* ── Section 2: Contributing Factors & Team Collaboration ───────────── */}
+      {/* ── Contributing Factors | Investigation Team ──────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Contributing Factors Panel */}
         <Panel
           title="Contributing Factors"
-          subtitle="Document multi-factorial influences (systemic, human, environmental)"
-          icon={<Layers className="w-5 h-5" />}
+          subtitle="Record multiple validated factors for clustering and prediction"
         >
           {!isLocked && (
-            <div className="space-y-3 p-4 rounded-xl bg-slate-50 border" style={{ borderColor: BORDER }}>
+            <div className="space-y-2.5 mb-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <input
                   type="text"
-                  placeholder="Category (e.g. Ergonomics)"
+                  placeholder="Category"
                   value={newFactor.category}
                   onChange={(e) => setNewFactor({ ...newFactor, category: e.target.value })}
-                  className={`${inputStyle} sm:col-span-1`}
-                  style={{ borderColor: BORDER }}
+                  className={inputStyle}
+                  style={{ borderColor: BORDER, color: TEXT }}
                 />
                 <input
                   type="text"
@@ -618,7 +640,7 @@ const InvestigatorWorkspace: React.FC = () => {
                   value={newFactor.description}
                   onChange={(e) => setNewFactor({ ...newFactor, description: e.target.value })}
                   className={`${inputStyle} sm:col-span-2`}
-                  style={{ borderColor: BORDER }}
+                  style={{ borderColor: BORDER, color: TEXT }}
                 />
               </div>
               <button
@@ -628,39 +650,41 @@ const InvestigatorWorkspace: React.FC = () => {
                   setFactors([...factors, newFactor]);
                   setNewFactor({ category: '', description: '' });
                 }}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#0F1E42] hover:bg-slate-800 transition-colors disabled:opacity-40 cursor-pointer"
+                className={btnNavy}
+                style={{ backgroundColor: NAVY }}
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-3.5 h-3.5" />
                 Add Contributing Factor
               </button>
             </div>
           )}
 
-          <div className="space-y-2 mt-4">
+          <div className="space-y-2">
             {factors.length === 0 ? (
-              <p className="text-xs text-slate-400 italic py-2">
-                No contributing factors logged yet. At least one required for formal submission.
+              <p className="text-[12px] italic py-2" style={{ color: MUTED }}>
+                No contributing factors logged yet. At least one is required for formal submission.
               </p>
             ) : (
               factors.map((f, idx) => (
                 <div
                   key={`${f.category}-${idx}`}
-                  className="p-3.5 rounded-xl border bg-white flex items-center justify-between gap-3 text-xs"
+                  className="px-3.5 py-2.5 rounded-lg border flex items-start justify-between gap-3 text-[12px]"
                   style={{ borderColor: BORDER }}
                 >
-                  <div>
-                    <span className="font-extrabold text-[#0F1E42] uppercase tracking-wide mr-2">
-                      [{f.category}]
+                  <div className="leading-relaxed">
+                    <span className="font-bold" style={{ color: TEXT }}>
+                      {f.category}
                     </span>
-                    <span className="text-slate-700">{f.description}</span>
+                    <span style={{ color: MUTED }}> — </span>
+                    <span style={{ color: BODY }}>{f.description}</span>
                   </div>
                   {!isLocked && (
                     <button
                       type="button"
                       onClick={() => setFactors(factors.filter((_, i) => i !== idx))}
-                      className="p-1 rounded text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                      className="p-1 rounded text-red-500 hover:bg-red-50 transition-colors cursor-pointer shrink-0"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   )}
                 </div>
@@ -669,22 +693,20 @@ const InvestigatorWorkspace: React.FC = () => {
           </div>
         </Panel>
 
-        {/* Investigation Team Panel */}
         <Panel
-          title="Investigation Team Members"
-          subtitle="Collaborate with active peers within the incident department"
-          icon={<Users className="w-5 h-5" />}
+          title="Investigation Team"
+          subtitle="Eligible active colleagues from the same department"
         >
           {!isLocked && (
-            <div className="space-y-3 p-4 rounded-xl bg-slate-50 border" style={{ borderColor: BORDER }}>
+            <div className="space-y-2.5 mb-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <select
                   value={teamInput.userId}
                   onChange={(e) => setTeamInput({ ...teamInput, userId: e.target.value })}
-                  className={inputStyle}
-                  style={{ borderColor: BORDER }}
+                  className={`${inputStyle} cursor-pointer`}
+                  style={{ borderColor: BORDER, color: TEXT }}
                 >
-                  <option value="">Select department colleague…</option>
+                  <option value="">Select member</option>
                   {candidates.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name} • {c.role}
@@ -697,7 +719,7 @@ const InvestigatorWorkspace: React.FC = () => {
                   value={teamInput.role}
                   onChange={(e) => setTeamInput({ ...teamInput, role: e.target.value })}
                   className={inputStyle}
-                  style={{ borderColor: BORDER }}
+                  style={{ borderColor: BORDER, color: TEXT }}
                 />
               </div>
               <button
@@ -714,39 +736,45 @@ const InvestigatorWorkspace: React.FC = () => {
                   );
                   setTeamInput({ userId: '', role: 'Co-Investigator' });
                 }}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#0F1E42] hover:bg-slate-800 transition-colors disabled:opacity-40 cursor-pointer"
+                className={btnNavy}
+                style={{ backgroundColor: NAVY }}
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-3.5 h-3.5" />
                 Assign Team Member
               </button>
             </div>
           )}
 
-          <div className="space-y-2 mt-4">
-            {/* Lead Investigator */}
-            <div className="p-3.5 rounded-xl border bg-slate-50 flex items-center justify-between text-xs" style={{ borderColor: BORDER }}>
+          <div className="space-y-2">
+            <div
+              className="px-3.5 py-2.5 rounded-lg border flex items-center justify-between text-[12px]"
+              style={{ borderColor: BORDER, backgroundColor: '#F7F8FA' }}
+            >
               <div className="flex items-center gap-2">
-                <UserCheck className="w-4 h-4 text-emerald-600" />
-                <div>
-                  <span className="font-extrabold text-[#0F1E42]">{record.leadInvestigator?.name}</span>
-                  <span className="text-slate-500 ml-1.5">(Lead Investigator)</span>
-                </div>
+                <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+                <span className="font-bold" style={{ color: TEXT }}>
+                  {record.leadInvestigator?.name}
+                </span>
+                <span style={{ color: MUTED }}>Lead Investigator</span>
               </div>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
+              <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 tracking-wider">
                 LEAD
               </span>
             </div>
 
-            {/* Additional Team Members */}
             {record.teamMembers?.map((m) => (
               <div
                 key={m.userId}
-                className="p-3.5 rounded-xl border bg-white flex items-center justify-between text-xs"
+                className="px-3.5 py-2.5 rounded-lg border flex items-center justify-between text-[12px]"
                 style={{ borderColor: BORDER }}
               >
-                <div>
-                  <span className="font-bold text-slate-800">{m.user?.name}</span>
-                  <span className="text-slate-500 ml-1.5">• {m.role}</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold" style={{ color: TEXT }}>
+                    {m.user?.name}
+                  </span>
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded tracking-wider bg-slate-50 text-slate-600 border border-slate-200">
+                    {m.role}
+                  </span>
                 </div>
                 {!isLocked && (
                   <button
@@ -757,184 +785,189 @@ const InvestigatorWorkspace: React.FC = () => {
                         'Team member removed.'
                       )
                     }
-                    className="p-1 rounded text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                    className="p-1 rounded text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 )}
               </div>
             ))}
+
+            {record.teamMembers?.length === 0 && (
+              <p className="text-[12px] italic py-1" style={{ color: MUTED }}>
+                No additional team members assigned.
+              </p>
+            )}
           </div>
         </Panel>
       </div>
 
-      {/* ── Section 3: Formal Root Cause Analysis (RCA) ────────────────────── */}
+      {/* ── Complete Root Cause Analysis ───────────────────────────────────── */}
       <Panel
-        title="Section 3: Formal Root Cause Analysis (RCA)"
-        subtitle="Mandatory structured root-cause classification and causal chain reasoning"
-        icon={<Bookmark className="w-5 h-5" />}
+        title="Complete Root Cause Analysis"
+        subtitle="Category, sub-category, description, method and analysis detail are required for submission"
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider mb-1.5" style={{ color: TEXT }}>
-              Root Cause Category *
-            </label>
-            <select
-              disabled={isLocked}
-              value={draft.rootCauseCategory}
-              onChange={(e) => setDraft({ ...draft, rootCauseCategory: e.target.value })}
-              className={inputStyle}
-              style={{ borderColor: BORDER }}
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className={labelStyle} style={{ color: TEXT }}>
+                Root-cause category <span className="text-red-500">*</span>
+              </label>
+              <select
+                disabled={isLocked}
+                value={draft.rootCauseCategory}
+                onChange={(e) => setDraft({ ...draft, rootCauseCategory: e.target.value })}
+                className={`${inputStyle} cursor-pointer`}
+                style={{ borderColor: BORDER, color: TEXT }}
+              >
+                <option value="">Select category…</option>
+                {ROOT_CAUSE_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className={labelStyle} style={{ color: TEXT }}>
+                Sub-category <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                disabled={isLocked}
+                placeholder="e.g. Dose verification omission"
+                value={draft.rootCauseSubcategory}
+                onChange={(e) => setDraft({ ...draft, rootCauseSubcategory: e.target.value })}
+                className={inputStyle}
+                style={{ borderColor: BORDER, color: TEXT }}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+            <div>
+              <label className={labelStyle} style={{ color: TEXT }}>
+                Analysis method <span className="text-red-500">*</span>
+              </label>
+              <select
+                disabled={isLocked}
+                value={draft.rootCauseMethod}
+                onChange={(e) =>
+                  setDraft({ ...draft, rootCauseMethod: e.target.value as InvestigationMethod | '' })
+                }
+                className={`${inputStyle} cursor-pointer`}
+                style={{ borderColor: BORDER, color: TEXT }}
+              >
+                <option value="">Select method…</option>
+                {METHODS.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <label
+              className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border cursor-pointer select-none md:mt-[22px]"
+              style={{ borderColor: BORDER, color: TEXT }}
             >
-              <option value="">Select standard category…</option>
-              {ROOT_CAUSE_CATEGORIES.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider mb-1.5" style={{ color: TEXT }}>
-              Root Cause Sub-Category *
-            </label>
-            <input
-              type="text"
-              disabled={isLocked}
-              placeholder="e.g. Dose verification omission"
-              value={draft.rootCauseSubcategory}
-              onChange={(e) => setDraft({ ...draft, rootCauseSubcategory: e.target.value })}
-              className={inputStyle}
-              style={{ borderColor: BORDER }}
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider mb-1.5" style={{ color: TEXT }}>
-              Causal Analysis Method *
-            </label>
-            <select
-              disabled={isLocked}
-              value={draft.rootCauseMethod}
-              onChange={(e) =>
-                setDraft({ ...draft, rootCauseMethod: e.target.value as InvestigationMethod })
-              }
-              className={inputStyle}
-              style={{ borderColor: BORDER }}
-            >
-              <option value="">Select analysis method…</option>
-              {METHODS.map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="col-span-1 md:col-span-2 lg:col-span-3">
-            <label className="flex items-center gap-2.5 p-3.5 rounded-xl bg-slate-50 border cursor-pointer select-none" style={{ borderColor: BORDER }}>
               <input
                 type="checkbox"
                 disabled={isLocked}
                 checked={draft.systemicIssue}
                 onChange={(e) => setDraft({ ...draft, systemicIssue: e.target.checked })}
-                className="w-4 h-4 rounded text-[#0F1E42] focus:ring-[#0F1E42]"
+                className="w-4 h-4 rounded"
+                style={{ accentColor: NAVY }}
               />
-              <div>
-                <span className="text-xs font-extrabold text-[#0F1E42]">
-                  Flag as Hospital-Wide Systemic Issue
-                </span>
-                <p className="text-[11px] text-slate-500">
-                  Flags this root cause for enterprise clinical governance review across multiple departments.
-                </p>
-              </div>
+              <span className="text-[12px] font-semibold">Flag as systemic issue</span>
             </label>
           </div>
 
-          <div className="col-span-1 md:col-span-2 lg:col-span-3">
-            <label className="block text-xs font-bold uppercase tracking-wider mb-1.5" style={{ color: TEXT }}>
-              Primary Root-Cause Statement (Underlying Factor) *
+          <div>
+            <label className={labelStyle} style={{ color: TEXT }}>
+              Primary root-cause statement <span className="text-red-500">*</span>
             </label>
             <textarea
-              rows={2}
+              rows={3}
               disabled={isLocked}
+              placeholder="State the underlying cause identified through the selected method…"
               value={draft.rootCauseDescription}
               onChange={(e) => setDraft({ ...draft, rootCauseDescription: e.target.value })}
-              placeholder="Synthesize the single primary root cause discovered during investigation…"
-              className={`${inputStyle} resize-y leading-relaxed`}
-              style={{ borderColor: BORDER }}
+              className={`${inputStyle} resize-y`}
+              style={{ borderColor: BORDER, color: TEXT }}
             />
-            <div className="flex justify-between items-center text-xs mt-1 text-slate-400">
-              <span>Concise, auditable statement directly supported by findings.</span>
-              <span className={draft.rootCauseDescription.length >= 20 ? 'text-emerald-600 font-bold' : 'text-amber-600 font-medium'}>
-                {draft.rootCauseDescription.length} characters (min 20)
+            <div className="flex justify-end mt-1">
+              <span
+                className={`text-[11px] font-semibold ${
+                  draft.rootCauseDescription.trim().length >= 20 ? 'text-emerald-600' : 'text-amber-600'
+                }`}
+              >
+                {draft.rootCauseDescription.trim().length} characters (min 20)
               </span>
             </div>
           </div>
 
-          <div className="col-span-1 md:col-span-2 lg:col-span-3">
-            <label className="block text-xs font-bold uppercase tracking-wider mb-1.5" style={{ color: TEXT }}>
-              Detailed Analysis & Reasoning Rationale *
+          <div>
+            <label className={labelStyle} style={{ color: TEXT }}>
+              Detailed analysis &amp; reasoning <span className="text-red-500">*</span>
             </label>
             <textarea
               rows={4}
               disabled={isLocked}
+              placeholder="Document the causal chain and supporting evidence…"
               value={draft.rootCauseDetail}
               onChange={(e) => setDraft({ ...draft, rootCauseDetail: e.target.value })}
-              placeholder="Document the causal chain (e.g. 5 Whys steps, barrier analysis, why defenses failed)…"
-              className={`${inputStyle} resize-y leading-relaxed`}
-              style={{ borderColor: BORDER }}
+              className={`${inputStyle} resize-y`}
+              style={{ borderColor: BORDER, color: TEXT }}
             />
-            <div className="flex justify-between items-center text-xs mt-1 text-slate-400">
-              <span>Logical progression explaining why existing safeguards did not prevent the event.</span>
-              <span className={draft.rootCauseDetail.length >= 20 ? 'text-emerald-600 font-bold' : 'text-amber-600 font-medium'}>
-                {draft.rootCauseDetail.length} characters (min 20)
+            <div className="flex justify-end mt-1">
+              <span
+                className={`text-[11px] font-semibold ${
+                  draft.rootCauseDetail.trim().length >= 20 ? 'text-emerald-600' : 'text-amber-600'
+                }`}
+              >
+                {draft.rootCauseDetail.trim().length} characters (min 20)
               </span>
             </div>
           </div>
-        </div>
 
-        {!isLocked && (
-          <div className="mt-4 pt-4 border-t flex justify-end" style={{ borderColor: BORDER }}>
-            <button
-              type="button"
-              onClick={() => handleSaveDraft(true)}
-              disabled={mutation.isPending}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-[#0F1E42] hover:bg-slate-800 transition-colors shadow-sm cursor-pointer disabled:opacity-50"
-            >
-              <Save className="w-4 h-4" />
-              Save Structured RCA
-            </button>
-          </div>
-        )}
+          {!isLocked && (
+            <div className="flex justify-end pt-1">
+              <button
+                onClick={() => handleSaveDraft(true)}
+                disabled={mutation.isPending}
+                className={btnNavy}
+                style={{ backgroundColor: NAVY }}
+              >
+                <Save className="w-3.5 h-3.5" />
+                Save Structured RCA
+              </button>
+            </div>
+          )}
+        </div>
       </Panel>
 
-      {/* ── Section 4: Evidence, Timeline & Witnesses ──────────────────────── */}
+      {/* ── Witnesses | Timeline | Evidence ────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Witnesses Panel */}
-        <Panel
-          title="Witness Records"
-          subtitle="Interviews and formal statements"
-          icon={<Users className="w-4 h-4" />}
-        >
+        <Panel title="Witness Records" subtitle="Interviews and formal statements">
           {!isLocked && (
-            <div className="space-y-2 p-3 rounded-xl bg-slate-50 border mb-4 text-xs" style={{ borderColor: BORDER }}>
+            <div className="space-y-2 mb-4">
               <input
                 type="text"
-                placeholder="Witness Full Name *"
+                placeholder="Witness name *"
                 value={witnessInput.name}
                 onChange={(e) => setWitnessInput({ ...witnessInput, name: e.target.value })}
                 className={inputStyle}
-                style={{ borderColor: BORDER }}
+                style={{ borderColor: BORDER, color: TEXT }}
               />
               <input
                 type="text"
-                placeholder="Clinical Role / Contact Info"
+                placeholder="Clinical role / contact"
                 value={witnessInput.roleOrContact}
                 onChange={(e) => setWitnessInput({ ...witnessInput, roleOrContact: e.target.value })}
                 className={inputStyle}
-                style={{ borderColor: BORDER }}
+                style={{ borderColor: BORDER, color: TEXT }}
               />
               <textarea
                 rows={2}
@@ -942,14 +975,14 @@ const InvestigatorWorkspace: React.FC = () => {
                 value={witnessInput.statement}
                 onChange={(e) => setWitnessInput({ ...witnessInput, statement: e.target.value })}
                 className={`${inputStyle} resize-y`}
-                style={{ borderColor: BORDER }}
+                style={{ borderColor: BORDER, color: TEXT }}
               />
               <input
                 type="date"
                 value={witnessInput.interviewedAt}
                 onChange={(e) => setWitnessInput({ ...witnessInput, interviewedAt: e.target.value })}
                 className={inputStyle}
-                style={{ borderColor: BORDER }}
+                style={{ borderColor: BORDER, color: TEXT }}
               />
               <button
                 type="button"
@@ -961,57 +994,69 @@ const InvestigatorWorkspace: React.FC = () => {
                   );
                   setWitnessInput({ name: '', roleOrContact: '', statement: '', interviewedAt: '' });
                 }}
-                className="w-full py-2 rounded-xl text-xs font-bold text-white bg-[#0F1E42] hover:bg-slate-800 disabled:opacity-40 transition-colors cursor-pointer"
+                className={`${btnNavy} w-full`}
+                style={{ backgroundColor: NAVY }}
               >
                 Log Witness Interview
               </button>
             </div>
           )}
 
-          <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
-            {record.witnesses?.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">No witness statements recorded.</p>
+          <div className="space-y-2 max-h-72 overflow-y-auto custom-scrollbar">
+            {!record.witnesses?.length ? (
+              <p className="text-[12px] italic" style={{ color: MUTED }}>
+                No witness statements recorded.
+              </p>
             ) : (
-              record.witnesses?.map((w) => (
-                <div key={w.id} className="p-3 rounded-xl border bg-white space-y-1 text-xs" style={{ borderColor: BORDER }}>
-                  <div className="flex justify-between items-start font-bold text-slate-800">
-                    <span>{w.name}</span>
+              record.witnesses.map((w) => (
+                <div
+                  key={w.id}
+                  className="px-3.5 py-2.5 rounded-lg border space-y-1 text-[12px]"
+                  style={{ borderColor: BORDER }}
+                >
+                  <div className="flex justify-between items-start gap-2">
+                    <span className="font-bold" style={{ color: TEXT }}>
+                      {w.name}
+                    </span>
                     {w.interviewedAt && (
-                      <span className="text-[10px] text-slate-400">
+                      <span className="text-[10px] shrink-0" style={{ color: MUTED }}>
                         {new Date(w.interviewedAt).toLocaleDateString()}
                       </span>
                     )}
                   </div>
-                  {w.roleOrContact && <div className="text-[11px] text-slate-500">{w.roleOrContact}</div>}
-                  {w.statement && <p className="text-slate-600 leading-relaxed pt-1 italic">"{w.statement}"</p>}
+                  {w.roleOrContact && (
+                    <div className="text-[11px]" style={{ color: MUTED }}>
+                      {w.roleOrContact}
+                    </div>
+                  )}
+                  {w.statement && (
+                    <p className="italic leading-relaxed" style={{ color: BODY }}>
+                      “{w.statement}”
+                    </p>
+                  )}
                 </div>
               ))
             )}
           </div>
         </Panel>
 
-        {/* Timeline Panel */}
-        <Panel
-          title="Timeline of Events"
-          subtitle="Chronological event log"
-          icon={<Clock className="w-4 h-4" />}
-        >
+        <Panel title="Timeline of Events" subtitle="Chronological event log">
           {!isLocked && (
-            <div className="space-y-2 p-3 rounded-xl bg-slate-50 border mb-4 text-xs" style={{ borderColor: BORDER }}>
+            <div className="space-y-2 mb-4">
               <input
                 type="datetime-local"
                 value={timelineInput.occurredAt}
                 onChange={(e) => setTimelineInput({ ...timelineInput, occurredAt: e.target.value })}
                 className={inputStyle}
-                style={{ borderColor: BORDER }}
+                style={{ borderColor: BORDER, color: TEXT }}
               />
               <input
                 type="text"
-                placeholder="Event Title *"
+                placeholder="Event title *"
                 value={timelineInput.title}
                 onChange={(e) => setTimelineInput({ ...timelineInput, title: e.target.value })}
                 className={inputStyle}
-                style={{ borderColor: BORDER }}
+                style={{ borderColor: BORDER, color: TEXT }}
               />
               <textarea
                 rows={2}
@@ -1019,15 +1064,15 @@ const InvestigatorWorkspace: React.FC = () => {
                 value={timelineInput.description}
                 onChange={(e) => setTimelineInput({ ...timelineInput, description: e.target.value })}
                 className={`${inputStyle} resize-y`}
-                style={{ borderColor: BORDER }}
+                style={{ borderColor: BORDER, color: TEXT }}
               />
               <input
                 type="text"
-                placeholder="Source / Record Reference (e.g. EHR log)"
+                placeholder="Source / record reference"
                 value={timelineInput.source}
                 onChange={(e) => setTimelineInput({ ...timelineInput, source: e.target.value })}
                 className={inputStyle}
-                style={{ borderColor: BORDER }}
+                style={{ borderColor: BORDER, color: TEXT }}
               />
               <button
                 type="button"
@@ -1039,49 +1084,59 @@ const InvestigatorWorkspace: React.FC = () => {
                   );
                   setTimelineInput({ occurredAt: '', title: '', description: '', source: '' });
                 }}
-                className="w-full py-2 rounded-xl text-xs font-bold text-white bg-[#0F1E42] hover:bg-slate-800 disabled:opacity-40 transition-colors cursor-pointer"
+                className={`${btnNavy} w-full`}
+                style={{ backgroundColor: NAVY }}
               >
                 Log Chronological Event
               </button>
             </div>
           )}
 
-          <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
-            {record.timeline?.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">No chronological events logged.</p>
+          <div className="space-y-2 max-h-72 overflow-y-auto custom-scrollbar">
+            {!record.timeline?.length ? (
+              <p className="text-[12px] italic" style={{ color: MUTED }}>
+                No chronological events logged.
+              </p>
             ) : (
-              record.timeline?.map((t) => (
-                <div key={t.id} className="p-3 rounded-xl border bg-white space-y-1 text-xs" style={{ borderColor: BORDER }}>
-                  <div className="flex justify-between items-start font-bold text-[#0F1E42]">
-                    <span>{t.title}</span>
-                    <span className="text-[10px] text-slate-500 font-mono">
+              record.timeline.map((t) => (
+                <div
+                  key={t.id}
+                  className="px-3.5 py-2.5 rounded-lg border space-y-1 text-[12px]"
+                  style={{ borderColor: BORDER }}
+                >
+                  <div className="flex justify-between items-start gap-2">
+                    <span className="font-bold" style={{ color: TEXT }}>
+                      {t.title}
+                    </span>
+                    <span className="text-[10px] font-mono shrink-0" style={{ color: MUTED }}>
                       {new Date(t.occurredAt).toLocaleString()}
                     </span>
                   </div>
-                  <p className="text-slate-600 leading-relaxed">{t.description}</p>
-                  {t.source && <div className="text-[10px] text-slate-400">Ref: {t.source}</div>}
+                  <p className="leading-relaxed" style={{ color: BODY }}>
+                    {t.description}
+                  </p>
+                  {t.source && (
+                    <div className="text-[10px]" style={{ color: MUTED }}>
+                      Ref: {t.source}
+                    </div>
+                  )}
                 </div>
               ))
             )}
           </div>
         </Panel>
 
-        {/* Evidence References Panel */}
-        <Panel
-          title="Evidence References"
-          subtitle="Artifacts and clinical records"
-          icon={<Paperclip className="w-4 h-4" />}
-        >
+        <Panel title="Evidence References" subtitle="Artifacts and clinical records">
           {!isLocked && (
-            <div className="space-y-2 p-3 rounded-xl bg-slate-50 border mb-4 text-xs" style={{ borderColor: BORDER }}>
+            <div className="space-y-2 mb-4">
               <select
                 value={evidenceInput.attachmentId}
                 onChange={(e) => setEvidenceInput({ ...evidenceInput, attachmentId: e.target.value })}
-                className={inputStyle}
-                style={{ borderColor: BORDER }}
+                className={`${inputStyle} cursor-pointer`}
+                style={{ borderColor: BORDER, color: TEXT }}
               >
-                <option value="">Link uploaded attachment (Optional)…</option>
-                {inc.attachments?.map((att: any) => (
+                <option value="">Link uploaded attachment (optional)…</option>
+                {inc.attachments?.map((att) => (
                   <option key={att.id} value={att.id}>
                     {att.fileName} ({att.fileType})
                   </option>
@@ -1089,19 +1144,19 @@ const InvestigatorWorkspace: React.FC = () => {
               </select>
               <input
                 type="text"
-                placeholder="Evidence Label / Name *"
+                placeholder="Evidence label / name *"
                 value={evidenceInput.label}
                 onChange={(e) => setEvidenceInput({ ...evidenceInput, label: e.target.value })}
                 className={inputStyle}
-                style={{ borderColor: BORDER }}
+                style={{ borderColor: BORDER, color: TEXT }}
               />
               <input
                 type="text"
-                placeholder="External Document Ref ID (e.g. LAB-402)"
+                placeholder="External reference (e.g. LAB-402)"
                 value={evidenceInput.reference}
                 onChange={(e) => setEvidenceInput({ ...evidenceInput, reference: e.target.value })}
                 className={inputStyle}
-                style={{ borderColor: BORDER }}
+                style={{ borderColor: BORDER, color: TEXT }}
               />
               <textarea
                 rows={2}
@@ -1109,7 +1164,7 @@ const InvestigatorWorkspace: React.FC = () => {
                 value={evidenceInput.notes}
                 onChange={(e) => setEvidenceInput({ ...evidenceInput, notes: e.target.value })}
                 className={`${inputStyle} resize-y`}
-                style={{ borderColor: BORDER }}
+                style={{ borderColor: BORDER, color: TEXT }}
               />
               <button
                 type="button"
@@ -1127,28 +1182,44 @@ const InvestigatorWorkspace: React.FC = () => {
                   );
                   setEvidenceInput({ attachmentId: '', label: '', reference: '', notes: '' });
                 }}
-                className="w-full py-2 rounded-xl text-xs font-bold text-white bg-[#0F1E42] hover:bg-slate-800 disabled:opacity-40 transition-colors cursor-pointer"
+                className={`${btnNavy} w-full`}
+                style={{ backgroundColor: NAVY }}
               >
                 Attach Evidence Reference
               </button>
             </div>
           )}
 
-          <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
-            {record.evidence?.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">No structured evidence references logged.</p>
+          <div className="space-y-2 max-h-72 overflow-y-auto custom-scrollbar">
+            {!record.evidence?.length ? (
+              <p className="text-[12px] italic" style={{ color: MUTED }}>
+                No structured evidence references logged.
+              </p>
             ) : (
-              record.evidence?.map((e) => (
-                <div key={e.id} className="p-3 rounded-xl border bg-white space-y-1 text-xs" style={{ borderColor: BORDER }}>
-                  <div className="flex justify-between items-start font-bold text-slate-800">
-                    <span>{e.label}</span>
+              record.evidence.map((e) => (
+                <div
+                  key={e.id}
+                  className="px-3.5 py-2.5 rounded-lg border space-y-1 text-[12px]"
+                  style={{ borderColor: BORDER }}
+                >
+                  <div className="flex justify-between items-start gap-2">
+                    <span className="font-bold" style={{ color: TEXT }}>
+                      {e.label}
+                    </span>
                     {e.reference && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                      <span
+                        className="text-[9px] px-1.5 py-0.5 rounded font-mono shrink-0"
+                        style={{ backgroundColor: '#F1F3F8', color: BODY, border: `1px solid ${BORDER}` }}
+                      >
                         {e.reference}
                       </span>
                     )}
                   </div>
-                  {e.notes && <p className="text-slate-600 leading-relaxed text-[11px]">{e.notes}</p>}
+                  {e.notes && (
+                    <p className="text-[11px] leading-relaxed" style={{ color: BODY }}>
+                      {e.notes}
+                    </p>
+                  )}
                 </div>
               ))
             )}
@@ -1156,161 +1227,286 @@ const InvestigatorWorkspace: React.FC = () => {
         </Panel>
       </div>
 
-      {/* ── Clinical Decision Support & Governance Context ─────────────────── */}
-      {decisionSupport && (
+      {/* ── Related / Systemic Incidents | AI Evidence & Timeline Summary ──── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Panel
-          title="Clinical Decision Support & Pattern Recognition"
-          subtitle={`${decisionSupport.modelVersion} • Auditable clinical guidelines and taxonomy insights`}
-          icon={<Compass className="w-5 h-5 text-blue-700" />}
+          title="Related / Systemic Incidents"
+          subtitle="Only other incidents assigned to you may be linked"
         >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-            {/* Methodology Guidelines */}
-            <div className="p-4 rounded-xl bg-slate-50 border space-y-2.5" style={{ borderColor: BORDER }}>
-              <span className="font-extrabold uppercase tracking-wider text-[#0F1E42]">
-                Recommended Investigation Methods
-              </span>
-              <div className="space-y-2">
-                {decisionSupport.methodSuggestions.map((sug) => (
-                  <div key={sug.method} className="p-3 rounded-lg bg-white border flex justify-between items-center" style={{ borderColor: BORDER }}>
-                    <div>
-                      <div className="font-bold text-slate-800">{sug.method.replaceAll('_', ' ')}</div>
-                      <p className="text-slate-500 text-[11px] mt-0.5">{sug.reason}</p>
-                    </div>
-                    {!isLocked && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDraft({ ...draft, method: sug.method, rootCauseMethod: sug.method });
-                          toast.success(`Adopted ${sug.method.replaceAll('_', ' ')}`);
-                        }}
-                        className="px-3 py-1 rounded-lg text-xs font-bold text-blue-800 bg-blue-50 hover:bg-blue-100 transition-colors cursor-pointer"
-                      >
-                        Apply
-                      </button>
-                    )}
-                  </div>
+          {!isLocked && (
+            <div className="space-y-2 mb-4">
+              <select
+                value={linkInput.targetIncidentId}
+                onChange={(e) => setLinkInput({ ...linkInput, targetIncidentId: e.target.value })}
+                className={`${inputStyle} cursor-pointer`}
+                style={{ borderColor: BORDER, color: TEXT }}
+              >
+                <option value="">Select assigned incident…</option>
+                {relatedCandidates.map((c) => (
+                  <option key={c.incidentId} value={c.incidentId}>
+                    #{c.incident.id} — {c.incident.title}
+                  </option>
                 ))}
-              </div>
+              </select>
+              <textarea
+                rows={2}
+                placeholder="Reason for linking (min 10 characters)…"
+                value={linkInput.reason}
+                onChange={(e) => setLinkInput({ ...linkInput, reason: e.target.value })}
+                className={`${inputStyle} resize-y`}
+                style={{ borderColor: BORDER, color: TEXT }}
+              />
+              <button
+                type="button"
+                disabled={!linkInput.targetIncidentId || linkInput.reason.trim().length < 10}
+                onClick={() => {
+                  run(
+                    () =>
+                      investigationApi.linkIncident(incidentId, {
+                        targetIncidentId: Number(linkInput.targetIncidentId),
+                        reason: linkInput.reason.trim(),
+                      }),
+                    'Incident linked.'
+                  );
+                  setLinkInput({ targetIncidentId: '', reason: '' });
+                }}
+                className={btnNavy}
+                style={{ backgroundColor: NAVY }}
+              >
+                <Link2 className="w-3.5 h-3.5" />
+                Link Incident
+              </button>
             </div>
+          )}
 
-            {/* Historical Incident Pattern Matching */}
-            <div className="p-4 rounded-xl bg-slate-50 border space-y-2.5" style={{ borderColor: BORDER }}>
-              <span className="font-extrabold uppercase tracking-wider text-[#0F1E42]">
-                Correlated Incidents in Same Department
-              </span>
-              <div className="space-y-2">
-                {decisionSupport.similarIncidents.length === 0 ? (
-                  <p className="text-slate-400 italic py-2">No past incident correlations in your assigned queue.</p>
-                ) : (
-                  decisionSupport.similarIncidents.slice(0, 3).map((sim) => (
-                    <div key={sim.id} className="p-3 rounded-lg bg-white border flex justify-between items-center" style={{ borderColor: BORDER }}>
-                      <div className="truncate pr-2">
-                        <button
-                          type="button"
-                          onClick={() => navigate(`/investigator/${sim.id}`)}
-                          className="font-bold text-blue-800 hover:underline text-left truncate block"
-                        >
-                          #{sim.id} {sim.title}
-                        </button>
-                        <span className="text-[10px] text-slate-500">
-                          Matched on: {sim.matchedFields.join(', ')}
-                        </span>
-                      </div>
-                      <span className="text-xs font-extrabold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
-                        {(sim.similarity * 100).toFixed(0)}%
-                      </span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-          <p className="text-[11px] text-slate-400 mt-3">{decisionSupport.disclaimer}</p>
+          <p className="text-[12px] leading-relaxed" style={{ color: MUTED }}>
+            {relatedCandidates.length === 0
+              ? 'No other incidents are currently assigned to you.'
+              : `${relatedCandidates.length} other assigned ${
+                  relatedCandidates.length === 1 ? 'incident is' : 'incidents are'
+                } available for linkage.`}
+          </p>
         </Panel>
-      )}
 
-      {/* ── Section 5: Submission Checklist & Gate ──────────────────────────── */}
-      <Panel
-        title="Section 5: Submission Gate & Clinical Governance Verification"
-        subtitle="Verification checklist validating all mandatory governance fields before advancing to Manager review"
-        icon={<CheckCircle2 className="w-5 h-5 text-emerald-700" />}
-      >
-        {/* Visual Checklist */}
-        <div className="mb-6 space-y-3">
-          <div className="flex items-center justify-between text-xs font-bold">
-            <span style={{ color: TEXT }}>
-              Clinical Readiness: {readiness.completedCount} of {readiness.totalCount} Requirements Satisfied
-            </span>
-            <span className={readiness.allReady ? 'text-emerald-700' : 'text-amber-700'}>
-              {readiness.allReady ? 'Ready for Formal Submission' : 'Incomplete Clinical Governance'}
-            </span>
-          </div>
-
-          {/* Progress bar */}
-          <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+        <Panel
+          title="AI Evidence & Timeline Summary"
+          subtitle={`${decisionSupport?.modelVersion ?? 'clinical-decision-support-v1.0'} • clearly labeled assistance`}
+        >
+          <div className="space-y-3">
+            <p className="text-[12px] leading-relaxed" style={{ color: BODY }}>
+              {decisionSupport?.summaries.timeline ??
+                'No timeline events recorded yet. Chronological sequencing improves clinical RCA accuracy.'}
+            </p>
+            <p className="text-[12px] leading-relaxed" style={{ color: BODY }}>
+              {decisionSupport?.summaries.evidence ??
+                'No incident files or investigation references are available.'}
+            </p>
             <div
-              className={`h-full transition-all duration-300 ${
-                readiness.allReady ? 'bg-emerald-600' : 'bg-amber-500'
-              }`}
-              style={{ width: `${(readiness.completedCount / readiness.totalCount) * 100}%` }}
-            />
+              className="rounded-lg px-3.5 py-2.5 text-[11px] leading-relaxed flex items-start gap-2"
+              style={{ backgroundColor: '#F7F8FA', border: `1px solid ${BORDER}`, color: MUTED }}
+            >
+              <Sparkles className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: ROYAL }} />
+              <span>
+                AI-assisted context: it never overwrites Investigator findings. Review original sources
+                before accepting this summary.
+              </span>
+            </div>
+          </div>
+        </Panel>
+      </div>
+
+      {/* ── Similar Incidents | AI Method Suggestions ──────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Panel
+          title="Similar Incidents"
+          subtitle="Ranked from authorized incidents assigned to you"
+        >
+          {similarIncidents.length === 0 ? (
+            <p className="text-[12px] italic" style={{ color: MUTED }}>
+              No authorized similar incident found.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {similarIncidents.map((sim) => (
+                <button
+                  key={sim.id}
+                  onClick={() => navigate(`/investigator/${sim.id}`)}
+                  className="w-full text-left px-3.5 py-2.5 rounded-lg border hover:bg-slate-50 transition-colors cursor-pointer"
+                  style={{ borderColor: BORDER }}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-[12px] font-bold truncate" style={{ color: TEXT }}>
+                        {sim.title}
+                      </div>
+                      <div className="text-[11px] mt-0.5 truncate" style={{ color: MUTED }}>
+                        {sim.category} • {sim.location} • {sim.severity}
+                      </div>
+                      {sim.matchedFields.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {sim.matchedFields.map((f) => (
+                            <span
+                              key={f}
+                              className="text-[9px] px-1.5 py-0.5 rounded font-semibold"
+                              style={{ backgroundColor: '#F1F3F8', color: BODY, border: `1px solid ${BORDER}` }}
+                            >
+                              {f}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="text-[11px] font-extrabold" style={{ color: ROYAL }}>
+                        {Math.round(sim.similarity * 100)}%
+                      </span>
+                      <ArrowUpRight className="w-3.5 h-3.5" style={{ color: MUTED }} />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </Panel>
+
+        <Panel
+          title="AI Method Suggestions"
+          subtitle="Suggestions require explicit selection or dismissal"
+        >
+          {methodSuggestions.length === 0 ? (
+            <p className="text-[12px] italic" style={{ color: MUTED }}>
+              No methodology suggestions available for this incident.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {methodSuggestions.map((s) => (
+                <div
+                  key={s.method}
+                  className="px-3.5 py-3 rounded-lg border"
+                  style={{ borderColor: BORDER }}
+                >
+                  <div className="text-[11px] font-extrabold tracking-wider" style={{ color: TEXT }}>
+                    {METHOD_LABEL[s.method]}
+                  </div>
+                  <p className="text-[12px] leading-relaxed mt-1" style={{ color: BODY }}>
+                    {s.reason}
+                  </p>
+                  <div className="flex items-center gap-3 mt-2.5">
+                    <button
+                      type="button"
+                      disabled={isLocked}
+                      onClick={() => handleMethodSuggestion(s.method, 'ACCEPTED')}
+                      className="text-[11px] font-bold hover:underline disabled:opacity-40 cursor-pointer"
+                      style={{ color: ROYAL }}
+                    >
+                      Select
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isLocked}
+                      onClick={() => handleMethodSuggestion(s.method, 'DISMISSED')}
+                      className="text-[11px] font-bold hover:underline disabled:opacity-40 cursor-pointer"
+                      style={{ color: MUTED }}
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {decisionSupport?.disclaimer && (
+            <p className="text-[10px] leading-relaxed mt-3" style={{ color: MUTED }}>
+              {decisionSupport.disclaimer}
+            </p>
+          )}
+        </Panel>
+      </div>
+
+      {/* ── Submit for Manager Review ──────────────────────────────────────── */}
+      <Panel
+        title="Submit for Manager Review"
+        subtitle="Submission validates all required fields and locks findings until approval or revision request"
+      >
+        <div className="space-y-4">
+          <div>
+            <div className="flex items-center justify-between text-[11px] font-bold">
+              <span style={{ color: TEXT }}>
+                Clinical readiness: {readiness.completedCount} of {readiness.totalCount} requirements
+                satisfied
+              </span>
+              <span className={readiness.allReady ? 'text-emerald-600' : 'text-amber-600'}>
+                {readiness.allReady ? 'Ready for formal submission' : 'Incomplete governance'}
+              </span>
+            </div>
+            <div className="w-full h-1.5 rounded-full bg-slate-100 overflow-hidden mt-2">
+              <div
+                className={`h-full transition-all duration-300 ${
+                  readiness.allReady ? 'bg-emerald-600' : 'bg-amber-500'
+                }`}
+                style={{
+                  width: `${(readiness.completedCount / readiness.totalCount) * 100}%`,
+                }}
+              />
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {readiness.checks.map((chk) => (
               <div
                 key={chk.id}
-                className={`flex items-center gap-2.5 p-3 rounded-xl border text-xs transition-colors ${
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-[11px] ${
                   chk.ready
-                    ? 'bg-emerald-50/60 border-emerald-200 text-emerald-950 font-semibold'
+                    ? 'bg-emerald-50/60 border-emerald-200 text-emerald-900 font-semibold'
                     : 'bg-slate-50 border-slate-200 text-slate-600'
                 }`}
               >
                 {chk.ready ? (
-                  <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                 ) : (
-                  <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                 )}
                 <span className="truncate">{chk.label}</span>
               </div>
             ))}
           </div>
-        </div>
 
-        {/* Action Buttons */}
-        <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t" style={{ borderColor: BORDER }}>
-          <div className="text-xs text-slate-500 max-w-md">
-            Submission formally signs off your findings, sets status to <strong>SUBMITTED</strong>, and
-            advances incident state to <strong>UNDER_REVIEW</strong> for Department Manager sign-off.
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            {!isLocked && (
+          <div
+            className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t"
+            style={{ borderColor: BORDER }}
+          >
+            <p className="text-[11px] max-w-md leading-relaxed" style={{ color: MUTED }}>
+              Submission signs off findings, sets status to <strong>SUBMITTED</strong>, and advances the
+              incident to <strong>UNDER REVIEW</strong> for Department Manager sign-off.
+            </p>
+            <div className="flex items-center gap-2.5">
+              {!isLocked && (
+                <button
+                  type="button"
+                  onClick={() => handleSaveDraft(true)}
+                  disabled={mutation.isPending}
+                  className={`${btnOutline} bg-white hover:bg-slate-50`}
+                  style={{ borderColor: BORDER, color: BODY }}
+                >
+                  Save Final Draft
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => handleSaveDraft(true)}
-                disabled={mutation.isPending}
-                className="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 transition-colors shadow-sm cursor-pointer disabled:opacity-50"
+                disabled={isLocked || !readiness.allReady || mutation.isPending}
+                onClick={handleSubmitFinal}
+                className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-[12px] font-bold text-white transition-all shadow-sm cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                  record.status === 'REVISION_REQUESTED'
+                    ? 'bg-amber-600 hover:bg-amber-700'
+                    : 'bg-emerald-700 hover:bg-emerald-800'
+                }`}
               >
-                Save Final Draft
+                <Send className="w-3.5 h-3.5" />
+                {record.status === 'REVISION_REQUESTED'
+                  ? 'Resubmit Revised Findings'
+                  : 'Submit Investigation to Manager'}
               </button>
-            )}
-
-            <button
-              type="button"
-              disabled={isLocked || !readiness.allReady || mutation.isPending}
-              onClick={handleSubmitFinal}
-              className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white transition-all shadow-md cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-                record.status === 'REVISION_REQUESTED'
-                  ? 'bg-amber-600 hover:bg-amber-700'
-                  : 'bg-emerald-700 hover:bg-emerald-800'
-              }`}
-            >
-              <Send className="w-4 h-4" />
-              {record.status === 'REVISION_REQUESTED'
-                ? 'Resubmit Revised Findings to Manager'
-                : 'Submit Investigation to Manager'}
-            </button>
+            </div>
           </div>
         </div>
       </Panel>
