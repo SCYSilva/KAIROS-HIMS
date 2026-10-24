@@ -14,9 +14,6 @@ import {
   Check,
   Send,
   Save,
-  Link2,
-  Sparkles,
-  ArrowUpRight,
 } from 'lucide-react';
 import {
   investigationApi,
@@ -31,7 +28,6 @@ const TEXT = '#1A2447';
 const BODY = '#3B4565';
 const MUTED = '#6B7494';
 const SURFACE = '#FFFFFF';
-const ROYAL = '#2952C4';
 
 const METHODS: Array<{ value: InvestigationMethod; label: string }> = [
   { value: 'FIVE_WHYS', label: '5 Whys Analysis' },
@@ -51,14 +47,6 @@ const ROOT_CAUSE_CATEGORIES = [
   'Staffing / Workload Pressure',
   'Documentation & Electronic Records',
 ];
-
-const METHOD_LABEL: Record<InvestigationMethod, string> = {
-  FIVE_WHYS: 'FIVE WHYS',
-  FISHBONE: 'FISHBONE',
-  FAULT_TREE: 'FAULT TREE',
-  TIMELINE_ANALYSIS: 'TIMELINE ANALYSIS',
-  OTHER: 'OTHER',
-};
 
 const Panel: React.FC<{
   title: string;
@@ -107,18 +95,6 @@ const InvestigatorWorkspace: React.FC = () => {
     enabled: !!record,
   });
 
-  const { data: decisionSupport } = useQuery({
-    queryKey: ['investigation-decision-support', incidentId],
-    queryFn: () => investigationApi.decisionSupport(incidentId),
-    enabled: !!record,
-  });
-
-  const { data: queue } = useQuery({
-    queryKey: ['investigation-dashboard', 'related'],
-    queryFn: () => investigationApi.dashboard(),
-    enabled: !!record,
-  });
-
   // ── Form States ────────────────────────────────────────────────────────────
   const [draft, setDraft] = useState({
     startDate: '',
@@ -156,8 +132,6 @@ const InvestigatorWorkspace: React.FC = () => {
     reference: '',
     notes: '',
   });
-  const [linkInput, setLinkInput] = useState({ targetIncidentId: '', reason: '' });
-
   // ── Synchronize with loaded record ─────────────────────────────────────────
   useEffect(() => {
     if (record) {
@@ -191,7 +165,6 @@ const InvestigatorWorkspace: React.FC = () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['investigation-workspace', incidentId] }),
         queryClient.invalidateQueries({ queryKey: ['investigation-dashboard'] }),
-        queryClient.invalidateQueries({ queryKey: ['investigation-decision-support', incidentId] }),
       ]);
     },
     onError: (err: any) => {
@@ -243,25 +216,6 @@ const InvestigatorWorkspace: React.FC = () => {
         ? 'Revised findings successfully submitted for Manager review.'
         : 'Investigation successfully submitted to Manager.'
     );
-  };
-
-  // ── Decision Support Feedback ──────────────────────────────────────────────
-  const handleMethodSuggestion = (method: InvestigationMethod, action: 'ACCEPTED' | 'DISMISSED') => {
-    run(
-      () =>
-        investigationApi.feedback(incidentId, {
-          feature: 'METHOD_SUGGESTION',
-          resultKey: method,
-          action,
-          modelVersion: decisionSupport?.modelVersion ?? 'clinical-decision-support-v1.0',
-        }),
-      action === 'ACCEPTED' ? 'Suggested methodology applied to draft.' : 'Suggestion dismissed.'
-    );
-
-    if (action === 'ACCEPTED') {
-      setDraft((current) => ({ ...current, method }));
-      toast.success(`Method set to ${METHOD_LABEL[method]}. Remember to save the draft.`);
-    }
   };
 
   // ── Readiness Checklist Calculation ────────────────────────────────────────
@@ -348,10 +302,6 @@ const InvestigatorWorkspace: React.FC = () => {
   const overdue =
     !isLocked && !!record.endDate && new Date(record.endDate).getTime() < Date.now();
   const inc = record.incident;
-  const relatedCandidates = (queue?.items ?? []).filter((x) => x.incidentId !== incidentId);
-  const similarIncidents = decisionSupport?.similarIncidents ?? [];
-  const methodSuggestions = decisionSupport?.methodSuggestions ?? [];
-
   const inputStyle =
     'w-full rounded-lg border bg-white px-3 py-2.5 text-[13px] transition-all focus:outline-none focus:ring-2 focus:ring-[#1E2B5E] disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed';
   const labelStyle = 'block text-[10px] font-bold uppercase tracking-[0.12em] mb-1.5';
@@ -1224,202 +1174,6 @@ const InvestigatorWorkspace: React.FC = () => {
               ))
             )}
           </div>
-        </Panel>
-      </div>
-
-      {/* ── Related / Systemic Incidents | AI Evidence & Timeline Summary ──── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Panel
-          title="Related / Systemic Incidents"
-          subtitle="Only other incidents assigned to you may be linked"
-        >
-          {!isLocked && (
-            <div className="space-y-2 mb-4">
-              <select
-                value={linkInput.targetIncidentId}
-                onChange={(e) => setLinkInput({ ...linkInput, targetIncidentId: e.target.value })}
-                className={`${inputStyle} cursor-pointer`}
-                style={{ borderColor: BORDER, color: TEXT }}
-              >
-                <option value="">Select assigned incident…</option>
-                {relatedCandidates.map((c) => (
-                  <option key={c.incidentId} value={c.incidentId}>
-                    #{c.incident.id} — {c.incident.title}
-                  </option>
-                ))}
-              </select>
-              <textarea
-                rows={2}
-                placeholder="Reason for linking (min 10 characters)…"
-                value={linkInput.reason}
-                onChange={(e) => setLinkInput({ ...linkInput, reason: e.target.value })}
-                className={`${inputStyle} resize-y`}
-                style={{ borderColor: BORDER, color: TEXT }}
-              />
-              <button
-                type="button"
-                disabled={!linkInput.targetIncidentId || linkInput.reason.trim().length < 10}
-                onClick={() => {
-                  run(
-                    () =>
-                      investigationApi.linkIncident(incidentId, {
-                        targetIncidentId: Number(linkInput.targetIncidentId),
-                        reason: linkInput.reason.trim(),
-                      }),
-                    'Incident linked.'
-                  );
-                  setLinkInput({ targetIncidentId: '', reason: '' });
-                }}
-                className={btnNavy}
-                style={{ backgroundColor: NAVY }}
-              >
-                <Link2 className="w-3.5 h-3.5" />
-                Link Incident
-              </button>
-            </div>
-          )}
-
-          <p className="text-[12px] leading-relaxed" style={{ color: MUTED }}>
-            {relatedCandidates.length === 0
-              ? 'No other incidents are currently assigned to you.'
-              : `${relatedCandidates.length} other assigned ${
-                  relatedCandidates.length === 1 ? 'incident is' : 'incidents are'
-                } available for linkage.`}
-          </p>
-        </Panel>
-
-        <Panel
-          title="AI Evidence & Timeline Summary"
-          subtitle={`${decisionSupport?.modelVersion ?? 'clinical-decision-support-v1.0'} • clearly labeled assistance`}
-        >
-          <div className="space-y-3">
-            <p className="text-[12px] leading-relaxed" style={{ color: BODY }}>
-              {decisionSupport?.summaries.timeline ??
-                'No timeline events recorded yet. Chronological sequencing improves clinical RCA accuracy.'}
-            </p>
-            <p className="text-[12px] leading-relaxed" style={{ color: BODY }}>
-              {decisionSupport?.summaries.evidence ??
-                'No incident files or investigation references are available.'}
-            </p>
-            <div
-              className="rounded-lg px-3.5 py-2.5 text-[11px] leading-relaxed flex items-start gap-2"
-              style={{ backgroundColor: '#F7F8FA', border: `1px solid ${BORDER}`, color: MUTED }}
-            >
-              <Sparkles className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: ROYAL }} />
-              <span>
-                AI-assisted context: it never overwrites Investigator findings. Review original sources
-                before accepting this summary.
-              </span>
-            </div>
-          </div>
-        </Panel>
-      </div>
-
-      {/* ── Similar Incidents | AI Method Suggestions ──────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Panel
-          title="Similar Incidents"
-          subtitle="Ranked from authorized incidents assigned to you"
-        >
-          {similarIncidents.length === 0 ? (
-            <p className="text-[12px] italic" style={{ color: MUTED }}>
-              No authorized similar incident found.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {similarIncidents.map((sim) => (
-                <button
-                  key={sim.id}
-                  onClick={() => navigate(`/investigator/${sim.id}`)}
-                  className="w-full text-left px-3.5 py-2.5 rounded-lg border hover:bg-slate-50 transition-colors cursor-pointer"
-                  style={{ borderColor: BORDER }}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-[12px] font-bold truncate" style={{ color: TEXT }}>
-                        {sim.title}
-                      </div>
-                      <div className="text-[11px] mt-0.5 truncate" style={{ color: MUTED }}>
-                        {sim.category} • {sim.location} • {sim.severity}
-                      </div>
-                      {sim.matchedFields.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1.5">
-                          {sim.matchedFields.map((f) => (
-                            <span
-                              key={f}
-                              className="text-[9px] px-1.5 py-0.5 rounded font-semibold"
-                              style={{ backgroundColor: '#F1F3F8', color: BODY, border: `1px solid ${BORDER}` }}
-                            >
-                              {f}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <span className="text-[11px] font-extrabold" style={{ color: ROYAL }}>
-                        {Math.round(sim.similarity * 100)}%
-                      </span>
-                      <ArrowUpRight className="w-3.5 h-3.5" style={{ color: MUTED }} />
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </Panel>
-
-        <Panel
-          title="AI Method Suggestions"
-          subtitle="Suggestions require explicit selection or dismissal"
-        >
-          {methodSuggestions.length === 0 ? (
-            <p className="text-[12px] italic" style={{ color: MUTED }}>
-              No methodology suggestions available for this incident.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {methodSuggestions.map((s) => (
-                <div
-                  key={s.method}
-                  className="px-3.5 py-3 rounded-lg border"
-                  style={{ borderColor: BORDER }}
-                >
-                  <div className="text-[11px] font-extrabold tracking-wider" style={{ color: TEXT }}>
-                    {METHOD_LABEL[s.method]}
-                  </div>
-                  <p className="text-[12px] leading-relaxed mt-1" style={{ color: BODY }}>
-                    {s.reason}
-                  </p>
-                  <div className="flex items-center gap-3 mt-2.5">
-                    <button
-                      type="button"
-                      disabled={isLocked}
-                      onClick={() => handleMethodSuggestion(s.method, 'ACCEPTED')}
-                      className="text-[11px] font-bold hover:underline disabled:opacity-40 cursor-pointer"
-                      style={{ color: ROYAL }}
-                    >
-                      Select
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isLocked}
-                      onClick={() => handleMethodSuggestion(s.method, 'DISMISSED')}
-                      className="text-[11px] font-bold hover:underline disabled:opacity-40 cursor-pointer"
-                      style={{ color: MUTED }}
-                    >
-                      Dismiss
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          {decisionSupport?.disclaimer && (
-            <p className="text-[10px] leading-relaxed mt-3" style={{ color: MUTED }}>
-              {decisionSupport.disclaimer}
-            </p>
-          )}
         </Panel>
       </div>
 
