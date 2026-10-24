@@ -88,3 +88,14 @@ export const updateTeamRoleSchema = z.object({
     errorMap: () => ({ message: 'Role must be STAFF, INVESTIGATOR, or ACTION_OWNER' }),
   }),
 });
+
+export const riskOverrideSchema = z.object({
+  level: z.enum(['Low', 'Medium', 'High', 'Critical'], {
+    errorMap: () => ({ message: 'Risk level must be Low, Medium, High or Critical' }),
+  }),
+  reason: z
+    .string()
+    .trim()
+    .min(10, { message: 'Reason for changing the risk level must be at least 10 characters long' })
+    .max(500, { message: 'Reason for changing the risk level must be at most 500 characters long' }),
+});

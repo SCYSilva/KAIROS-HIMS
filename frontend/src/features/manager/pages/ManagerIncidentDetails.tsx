@@ -14,6 +14,7 @@ import type {
   ReviewOutcome,
 } from '../api/manager.api';
 import toast from 'react-hot-toast';
+import { RiskAssessmentCard } from '../components/RiskAssessmentCard';
 import {
   CheckCircle,
   AlertTriangle,
@@ -677,6 +678,9 @@ export const ManagerIncidentDetails: React.FC = () => {
       {/* ── TAB 2: INVESTIGATION & FINDINGS REVIEW ─────────────────────────── */}
       {activeTab === 'investigation' && (
         <div className="space-y-6">
+          {/* AI Risk Assessment: shown before the Lead Investigator is assigned */}
+          <RiskAssessmentCard incidentId={incidentId} />
+
           {/* Assignment Section */}
           <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
             <h3 className="text-sm font-bold text-slate-800">Lead Investigator Assignment</h3>

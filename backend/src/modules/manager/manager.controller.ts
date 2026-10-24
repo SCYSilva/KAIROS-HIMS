@@ -15,6 +15,7 @@ import {
   managementReviewSchema,
   closeIncidentGateSchema,
   updateTeamRoleSchema,
+  riskOverrideSchema,
 } from './manager.validator';
 
 const getAuthContext = (req: Request) => {
@@ -75,6 +76,33 @@ export const getManagerIncidentDetails = catchAsync(async (req: Request, res: Re
 
   const incident = await managerService.getIncidentDetails(incidentId, departmentId);
   return res.status(200).json({ success: true, data: incident });
+});
+
+export const getIncidentRiskAssessment = catchAsync(async (req: Request, res: Response) => {
+  const { departmentId } = getAuthContext(req);
+  const incidentId = parseParamId(req.params.id, 'incident ID');
+
+  const data = await managerService.getIncidentRiskAssessment(incidentId, departmentId);
+  return res.status(200).json({ success: true, data });
+});
+
+export const setIncidentRiskOverride = catchAsync(async (req: Request, res: Response) => {
+  const { userId, departmentId } = getAuthContext(req);
+  const incidentId = parseParamId(req.params.id, 'incident ID');
+
+  const { level, reason } = riskOverrideSchema.parse(req.body);
+  const data = await managerService.setRiskOverride(incidentId, departmentId, userId, level, reason);
+
+  return res.status(200).json({ success: true, message: `Risk level set to ${level}`, data });
+});
+
+export const clearIncidentRiskOverride = catchAsync(async (req: Request, res: Response) => {
+  const { userId, departmentId } = getAuthContext(req);
+  const incidentId = parseParamId(req.params.id, 'incident ID');
+
+  const data = await managerService.clearRiskOverride(incidentId, departmentId, userId);
+
+  return res.status(200).json({ success: true, message: 'Reverted to the AI prediction', data });
 });
 
 export const triageIncident = catchAsync(async (req: Request, res: Response) => {

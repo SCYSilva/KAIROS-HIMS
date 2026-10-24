@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { managerApi } from '../api/manager.api';
+import type { RiskLevel } from '../api/manager.api';
 import toast from 'react-hot-toast';
 
 // Hook 1: Fetch Command Centre Dashboard Metrics & Feeds
@@ -44,6 +45,43 @@ export const useUpdateTeamRole = () => {
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || 'Failed to update staff role.');
+    },
+  });
+};
+
+// Hook 5: Risk Prediction card data: AI prediction + manager override (/incidents/:id/risk-assessment)
+// retry is off on purpose: the backend already reports an ML-service outage as `available: false`
+export const useIncidentRiskAssessment = (incidentId: number) => {
+  return useQuery({
+    queryKey: ['manager', 'incident', incidentId, 'risk-assessment'],
+    queryFn: () => managerApi.getIncidentRiskAssessment(incidentId),
+    enabled: Number.isFinite(incidentId) && incidentId > 0,
+    refetchOnWindowFocus: false,
+    retry: false,
+    // Cache a real prediction for 5 minutes, but never cache an "unavailable" one so reopening retries
+    staleTime: (query) => (query.state.data?.prediction.available ? 1000 * 60 * 5 : 0),
+  });
+};
+
+// Hook 6: Save a human override. The server returns the fresh card data, so we put it straight in the cache.
+export const useSetRiskOverride = (incidentId: number) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { level: RiskLevel; reason: string }) =>
+      managerApi.setIncidentRiskOverride(incidentId, payload),
+    onSuccess: (panel) => {
+      queryClient.setQueryData(['manager', 'incident', incidentId, 'risk-assessment'], panel);
+    },
+  });
+};
+
+// Hook 7: Remove the override (back to the AI prediction)
+export const useClearRiskOverride = (incidentId: number) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => managerApi.clearIncidentRiskOverride(incidentId),
+    onSuccess: (panel) => {
+      queryClient.setQueryData(['manager', 'incident', incidentId, 'risk-assessment'], panel);
     },
   });
 };

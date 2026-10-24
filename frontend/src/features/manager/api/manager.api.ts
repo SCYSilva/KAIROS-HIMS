@@ -311,6 +311,59 @@ export interface DepartmentTeamResponse {
 }
 
 // ==========================================
+// 4b. AI RISK ASSESSMENT (ML service)
+// ==========================================
+
+export type RiskLevel = 'Low' | 'Medium' | 'High' | 'Critical';
+
+export interface IncidentRiskAssessment {
+  totalScore: number; // 0-100
+  riskLevel: RiskLevel;
+  /** Level from the point total alone, before the reported-severity floor was applied */
+  computedLevelBeforeFloor: RiskLevel;
+  /** True when no similar past incidents exist, so the score uses reported severity only */
+  insufficientHistory: boolean;
+  breakdown: {
+    severity: { value: string; points: number; max: number };
+    recurrence: {
+      weightedScore: number;
+      sameDepartmentMatches: number;
+      totalMatches: number;
+      points: number;
+      max: number;
+    } | null;
+    duration: { avgResolutionDays: number; points: number; max: number } | null;
+  };
+}
+
+// The backend never fails the request when the ML service is down: it returns available: false
+export type IncidentRiskResult =
+  | { available: true; assessment: IncidentRiskAssessment }
+  | {
+      available: false;
+      reason: 'SERVICE_UNREACHABLE' | 'SERVICE_ERROR' | 'INVALID_RESPONSE';
+      message: string;
+    };
+
+// A manager's human override of the AI prediction
+export interface RiskOverride {
+  level: RiskLevel;
+  reason: string;
+  overriddenBy: { id: number; name: string } | null;
+  overriddenAt: string | null; // ISO timestamp
+  aiLevelAtOverride: RiskLevel | null;
+  aiScoreAtOverride: number | null;
+}
+
+// Everything the Risk Prediction card needs. finalLevel = the override if there is one,
+// otherwise the AI level, otherwise null (AI offline and nothing set yet).
+export interface IncidentRiskPanel {
+  prediction: IncidentRiskResult;
+  override: RiskOverride | null;
+  finalLevel: RiskLevel | null;
+}
+
+// ==========================================
 // 5. REST CLIENT API CALLS
 // ==========================================
 
@@ -327,6 +380,34 @@ export const managerApi = {
   getIncidentDetails: async (id: number): Promise<ManagerIncidentDetail> => {
     const response = await apiClient.get<{ success: boolean; data: ManagerIncidentDetail }>(
       `/manager/incidents/${id}`
+    );
+    return response.data.data;
+  },
+
+  // Fetch the Risk Prediction card data (AI prediction + manager override)
+  getIncidentRiskAssessment: async (id: number): Promise<IncidentRiskPanel> => {
+    const response = await apiClient.get<{ success: boolean; data: IncidentRiskPanel }>(
+      `/manager/incidents/${id}/risk-assessment`
+    );
+    return response.data.data;
+  },
+
+  // Human override: manager sets the risk level themselves (reason is mandatory)
+  setIncidentRiskOverride: async (
+    id: number,
+    payload: { level: RiskLevel; reason: string }
+  ): Promise<IncidentRiskPanel> => {
+    const response = await apiClient.put<{ success: boolean; data: IncidentRiskPanel }>(
+      `/manager/incidents/${id}/risk-override`,
+      payload
+    );
+    return response.data.data;
+  },
+
+  // Remove the override so the AI prediction is the final level again
+  clearIncidentRiskOverride: async (id: number): Promise<IncidentRiskPanel> => {
+    const response = await apiClient.delete<{ success: boolean; data: IncidentRiskPanel }>(
+      `/manager/incidents/${id}/risk-override`
     );
     return response.data.data;
   },

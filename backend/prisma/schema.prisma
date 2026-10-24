@@ -85,6 +85,7 @@ model User {
   verifiedCapaActions   CapaAction[]        @relation("ActionVerifier")
   managementReviews     ManagementReview[]  @relation("ReviewAuthor")
   closedIncidents       Incident[]          @relation("IncidentCloser")
+  riskOverriddenIncidents Incident[]        @relation("RiskOverrider")
   auditLogs             IncidentAuditLog[]
 
   // Structured Investigation Relations
@@ -143,6 +144,16 @@ model Incident {
   closureSummary    String?
   closedById        Int?
   closedBy          User?          @relation("IncidentCloser", fields: [closedById], references: [id])
+
+  // AI Risk Prediction: manager's human override. The AI score itself is never stored; we keep
+  // only the manager's decision, plus a snapshot of what the AI said at that moment (for audit).
+  riskOverrideLevel      String?    // Low | Medium | High | Critical
+  riskOverrideReason     String?
+  riskOverriddenAt       DateTime?
+  riskOverriddenById     Int?
+  riskOverriddenBy       User?      @relation("RiskOverrider", fields: [riskOverriddenById], references: [id])
+  aiRiskLevelAtOverride  String?
+  aiRiskScoreAtOverride  Int?
 
   // Clinical Governance Sub-Entities
   attachments       IncidentAttachment[]

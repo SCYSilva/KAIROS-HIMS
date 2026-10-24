@@ -1,0 +1,7 @@
+# PyTorch is installed separately in the Dockerfile (CPU-only build), so it is not listed here.
+fastapi>=0.110
+uvicorn>=0.29
+sentence-transformers>=3.0
+pandas>=2.0
+numpy>=1.26
+scikit-learn>=1.4

@@ -2,6 +2,8 @@
 
 import prisma from '../../shared/prisma/prisma';
 import { AppError } from '../../shared/utils/AppError';
+import { riskPredictionService } from '../../shared/services/risk-prediction.service';
+import { buildRiskPanel, RISK_SELECT } from './risk-panel';
 
 export class ManagerService {
   /**
@@ -458,6 +460,148 @@ export class ManagerService {
     }
 
     return incident;
+  }
+
+  /**
+   * Risk Prediction card for the Investigation stage (shown before Lead Investigator assignment).
+   * Returns the AI prediction, the manager's override (if any) and the final level.
+   * An ML-service outage is NOT an error: the prediction carries `available: false` so the page still works.
+   */
+  async getIncidentRiskAssessment(incidentId: number, departmentId: number) {
+    const incident = await prisma.incident.findFirst({
+      where: { id: incidentId, departmentId },
+      select: RISK_SELECT,
+    });
+
+    if (!incident) {
+      throw new AppError('Incident not found in your department.', 404);
+    }
+
+    const prediction = await riskPredictionService.scoreIncident(incident.id, {
+      title: incident.title,
+      description: incident.description,
+      severity: incident.severity,
+      department: incident.department.name,
+    });
+
+    return buildRiskPanel(incident, prediction);
+  }
+
+  /**
+   * Human override: the manager sets the risk level themselves, with a mandatory reason.
+   * Works even when the ML service is offline (the level is then a purely manual rating).
+   * Writes an audit entry with who, why, the previous level and what the AI said at that moment.
+   */
+  async setRiskOverride(
+    incidentId: number,
+    departmentId: number,
+    managerId: number,
+    level: 'Low' | 'Medium' | 'High' | 'Critical',
+    reason: string
+  ) {
+    const incident = await prisma.incident.findFirst({
+      where: { id: incidentId, departmentId },
+      select: RISK_SELECT,
+    });
+
+    if (!incident) throw new AppError('Incident not found in your department.', 404);
+    if (incident.status === 'CLOSED') {
+      throw new AppError('The risk level of a closed incident cannot be changed.', 409);
+    }
+
+    const prediction = await riskPredictionService.scoreIncident(incident.id, {
+      title: incident.title,
+      description: incident.description,
+      severity: incident.severity,
+      department: incident.department.name,
+    });
+
+    const aiLevel = prediction.available ? prediction.assessment.riskLevel : null;
+    const aiScore = prediction.available ? prediction.assessment.totalScore : null;
+    const previousLevel = incident.riskOverrideLevel ?? aiLevel;
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const row = await tx.incident.update({
+        where: { id: incidentId },
+        data: {
+          riskOverrideLevel: level,
+          riskOverrideReason: reason,
+          riskOverriddenById: managerId,
+          riskOverriddenAt: new Date(),
+          aiRiskLevelAtOverride: aiLevel,
+          aiRiskScoreAtOverride: aiScore,
+        },
+        select: RISK_SELECT,
+      });
+
+      await tx.incidentAuditLog.create({
+        data: {
+          incidentId,
+          userId: managerId,
+          action: 'RISK_OVERRIDDEN',
+          reason,
+          changes: JSON.stringify({ previousLevel, newLevel: level, aiLevel, aiScore }),
+        },
+      });
+
+      return row;
+    });
+
+    return buildRiskPanel(updated, prediction);
+  }
+
+  /**
+   * Removes the manager's override so the AI prediction is the final level again.
+   */
+  async clearRiskOverride(incidentId: number, departmentId: number, managerId: number) {
+    const incident = await prisma.incident.findFirst({
+      where: { id: incidentId, departmentId },
+      select: RISK_SELECT,
+    });
+
+    if (!incident) throw new AppError('Incident not found in your department.', 404);
+    if (incident.status === 'CLOSED') {
+      throw new AppError('The risk level of a closed incident cannot be changed.', 409);
+    }
+    if (!incident.riskOverrideLevel) {
+      throw new AppError('This incident has no risk override to revert.', 400);
+    }
+
+    const prediction = await riskPredictionService.scoreIncident(incident.id, {
+      title: incident.title,
+      description: incident.description,
+      severity: incident.severity,
+      department: incident.department.name,
+    });
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const row = await tx.incident.update({
+        where: { id: incidentId },
+        data: {
+          riskOverrideLevel: null,
+          riskOverrideReason: null,
+          riskOverriddenById: null,
+          riskOverriddenAt: null,
+          aiRiskLevelAtOverride: null,
+          aiRiskScoreAtOverride: null,
+        },
+        select: RISK_SELECT,
+      });
+
+      await tx.incidentAuditLog.create({
+        data: {
+          incidentId,
+          userId: managerId,
+          action: 'RISK_OVERRIDE_REVERTED',
+          reason: 'Reverted to the AI prediction',
+          changes: JSON.stringify({ removedOverrideLevel: incident.riskOverrideLevel }),
+        },
+      });
+
+      return row;
+    });
+
+    return buildRiskPanel(updated, prediction);
   }
 
     /**

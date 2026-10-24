@@ -4,10 +4,10 @@
     "target": "ES2022",
 
     /* Use Node.js module system */
-    "module": "CommonJS",
+    "module": "Node16",
 
     /* Resolve imports like Node.js */
-    "moduleResolution": "node",
+    "moduleResolution": "Node16",
 
     /* Source code location */
     "rootDir": "./src",

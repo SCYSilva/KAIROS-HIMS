@@ -30,6 +30,9 @@ services:
       PORT: 5000
       JWT_SECRET: "kairos_hims_super_secret_key_2026"
       JWT_EXPIRES_IN: "24h"
+      # Address of the optional ML service (Risk Prediction). If it is not running, the Risk Prediction
+      # card shows "unavailable" and managers can still set the risk level by hand.
+      AI_SERVICE_URL: "http://ml_service:8001"
     depends_on:
       - postgres_db # Ensures DB starts before the backend
     networks:
@@ -41,15 +44,36 @@ services:
     container_name: kairos_frontend
     restart: always
     ports:
-      - "80:80" # Maps port 80 of your laptop to port 80 of NGINX
+      - "80:8080" # Maps port 80 of your laptop to the unprivileged NGINX port
     depends_on:
       - backend
     networks:
       - kairos_network
 
-# Define persistent storage for the database
+  # 4. ML Service (optional): Risk Prediction, Similar Incidents, etc.
+  # It is NOT started by a plain `docker compose up`. Start everything including it with:
+  #   docker-compose --profile ml up --build
+  # The first build downloads PyTorch and the language model (a few GB); the first start builds
+  # the search indexes (a few minutes). Both are one-time costs.
+  ml_service:
+    build: ./ml-service
+    container_name: kairos_ml_service
+    profiles: ["ml"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8001:8001" # Only your own machine can open http://localhost:8001/docs (the service has no login)
+    environment:
+      ML_DATA_DIR: /app/data
+      ML_CSV_PATH: /app/seed/healthcare_incidents_synthetic.csv
+    volumes:
+      - ml_data:/app/data # Saved search indexes, so restarts are instant
+    networks:
+      - kairos_network
+
+# Define persistent storage for the database and the ML indexes
 volumes:
   postgres_data:
+  ml_data:
 
 # Define a custom network so containers can talk to each other
 networks:
