@@ -65,6 +65,7 @@ services:
     environment:
       ML_DATA_DIR: /app/data
       ML_CSV_PATH: /app/seed/healthcare_incidents_synthetic.csv
+      ML_INCLUDE_DEMO_LESSONS: "true"
     volumes:
       - ml_data:/app/data # Saved search indexes, so restarts are instant
     networks:

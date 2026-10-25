@@ -85,3 +85,16 @@ export const useClearRiskOverride = (incidentId: number) => {
     },
   });
 };
+
+// Hook 8: Lessons Learned search. Runs only once the manager has submitted at least 2 characters.
+export const useLessonsSearch = (query: string) => {
+  return useQuery({
+    queryKey: ['manager', 'lessons', query],
+    queryFn: () => managerApi.searchLessons(query),
+    enabled: query.trim().length >= 2,
+    refetchOnWindowFocus: false,
+    retry: false,
+    // Cache a real answer for 5 minutes, but never cache an "unavailable" one so searching again retries
+    staleTime: (q) => (q.state.data?.available ? 1000 * 60 * 5 : 0),
+  });
+};

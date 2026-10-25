@@ -364,6 +364,26 @@ export interface IncidentRiskPanel {
 }
 
 // ==========================================
+// 4c. LESSONS LEARNED LIBRARY (ML service)
+// ==========================================
+
+export interface LessonResult {
+  lesson: string;
+  category: string;
+  department: string;
+  matchPercent: number; // 0-100, how closely the lesson matches the search text
+}
+
+// The backend never fails the request when the ML service is down: it returns available: false
+export type LessonsSearchResult =
+  | { available: true; query: string; results: LessonResult[] }
+  | {
+      available: false;
+      reason: 'SERVICE_UNREACHABLE' | 'SERVICE_ERROR' | 'INVALID_RESPONSE';
+      message: string;
+    };
+
+// ==========================================
 // 5. REST CLIENT API CALLS
 // ==========================================
 
@@ -408,6 +428,15 @@ export const managerApi = {
   clearIncidentRiskOverride: async (id: number): Promise<IncidentRiskPanel> => {
     const response = await apiClient.delete<{ success: boolean; data: IncidentRiskPanel }>(
       `/manager/incidents/${id}/risk-override`
+    );
+    return response.data.data;
+  },
+
+  // Search the Lessons Learned library (covers the whole organisation)
+  searchLessons: async (query: string): Promise<LessonsSearchResult> => {
+    const response = await apiClient.get<{ success: boolean; data: LessonsSearchResult }>(
+      '/manager/lessons/search',
+      { params: { q: query } }
     );
     return response.data.data;
   },

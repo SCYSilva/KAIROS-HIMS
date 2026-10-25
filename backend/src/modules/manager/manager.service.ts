@@ -4,6 +4,7 @@ import prisma from '../../shared/prisma/prisma';
 import { AppError } from '../../shared/utils/AppError';
 import { riskPredictionService } from '../../shared/services/risk-prediction.service';
 import { buildRiskPanel, RISK_SELECT } from './risk-panel';
+import { lessonsLibraryService } from '../../shared/services/lessons-library.service';
 
 export class ManagerService {
   /**
@@ -602,6 +603,15 @@ export class ManagerService {
     });
 
     return buildRiskPanel(updated, prediction);
+  }
+
+  /**
+   * Lessons Learned library search. Lessons are shared knowledge, so the search covers the whole
+   * organisation (it is not limited to the manager's department). The lessons gateway never throws:
+   * an ML-service outage comes back as `available: false`.
+   */
+  async searchLessons(query: string) {
+    return lessonsLibraryService.search(query);
   }
 
     /**

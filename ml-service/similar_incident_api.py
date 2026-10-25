@@ -102,12 +102,17 @@ cluster_report_cache = generate_cluster_report(index)
 # since it embeds the lessons_learned TEXT itself, not incident
 # descriptions. Search happens per-request (like Similar Incidents),
 # since queries are arbitrary free text, not something to precompute.
+lessons_df = load_lessons()
 if os.path.exists(LESSONS_INDEX_PATH):
-    print("Loading existing lessons index...")
-    lessons_index = load_lessons_index(LESSONS_INDEX_PATH)
+    existing_lessons_index = load_lessons_index(LESSONS_INDEX_PATH)
+    if existing_lessons_index["incident_ids"] == lessons_df["incident_id"].tolist():
+        print("Loading existing lessons index...")
+        lessons_index = existing_lessons_index
+    else:
+        print("Lesson source changed; rebuilding lessons index...")
+        lessons_index = build_lessons_index(lessons_df)
 else:
     print("Building lessons index for the first time...")
-    lessons_df = load_lessons()
     lessons_index = build_lessons_index(lessons_df)
 
 

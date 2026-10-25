@@ -9,7 +9,7 @@ the browser never does.
 | `POST /similar-incidents` | Similar past incidents (not yet shown in the UI) |
 | `GET /recurring-incidents/{department}` | Recurring issues per department (not yet shown in the UI) |
 | `GET /incident-clusters` | Whole-hospital themes, admin only (not yet shown in the UI) |
-| `GET /lessons-search?q=...` | Lessons library search (not yet shown in the UI) |
+| `GET /lessons-search?q=...` | **Lessons menu** (Manager): search lessons learned |
 | `GET /health` | Status |
 
 ## Run with Docker (recommended)
@@ -42,9 +42,15 @@ When the backend runs outside Docker, its default `AI_SERVICE_URL` (`http://loca
 |---|---|---|
 | `ML_DATA_DIR` | `.` | Folder where the search indexes are saved |
 | `ML_CSV_PATH` | `healthcare_incidents_synthetic.csv` | Past incidents the service learns from |
+| `ML_INCLUDE_DEMO_LESSONS` | `false` | Include clearly labeled sample lessons for testing. Docker Compose enables these by default; set to `false` for real data |
 
 ## Important: the data
 
 `seed/healthcare_incidents_synthetic.csv` is **synthetic** (made-up facility incidents). Until it is replaced
 with an export of real closed incidents, the repeat-incident and time-to-close parts of the prediction
 reflect that made-up history. The reported-severity part is always real.
+
+`seed/demo_lessons.csv` contains additional, clearly labeled sample lessons for testing the Lessons page.
+They are included only when `ML_INCLUDE_DEMO_LESSONS=true`; the Docker Compose profile enables them.
+Do not treat or present these examples as real incident records. When the lesson source changes, the service
+rebuilds the saved lesson index on startup.

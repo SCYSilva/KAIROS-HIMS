@@ -30,6 +30,7 @@ import { ManagerDashboard } from './features/manager/pages/ManagerDashboard';
 import { ManagerIncidentDetails } from './features/manager/pages/ManagerIncidentDetails';
 import { ManagerAnalytics } from './features/manager/pages/ManagerAnalytics';
 import { ManagerTeam } from './features/manager/pages/ManagerTeam';
+import { LessonsLibrary } from './features/manager/pages/LessonsLibrary';
 import { IncidentsList } from './features/manager/pages/IncidentsList';
 
 const queryClient = new QueryClient({
@@ -113,6 +114,7 @@ function App() {
               {/* Department Manager & Admin Workspace Routes */}
               <Route element={<ProtectedRoute allowedRoles={['MANAGER', 'ADMIN']} />}>
                 <Route path="/incidents" element={<IncidentsList />} />
+                <Route path="/lessons" element={<LessonsLibrary />} />
                 <Route path="/team" element={<ManagerTeam />} />
                 <Route path="/analytics" element={<ManagerAnalytics />} />
               </Route>

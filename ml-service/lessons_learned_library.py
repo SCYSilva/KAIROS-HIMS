@@ -28,6 +28,7 @@ import pickle
 from similar_incident_pipeline import model, CSV_PATH, DATA_DIR  # reuse the already-loaded model
 
 LESSONS_INDEX_PATH = os.path.join(DATA_DIR, "lessons_index.pkl")
+DEMO_LESSONS_PATH = os.path.join(os.path.dirname(__file__), "seed", "demo_lessons.csv")
 LESSONS_THRESHOLD = 0.45  # starting guess -- tune after inspecting real scores
 LESSONS_TOP_K = 7
 
@@ -37,6 +38,15 @@ LESSONS_TOP_K = 7
 # ---------------------------------------------------------------------
 def load_lessons(csv_path=CSV_PATH, sample_size=None):
     df = pd.read_csv(csv_path)
+    include_demo_lessons = os.getenv("ML_INCLUDE_DEMO_LESSONS", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    if include_demo_lessons:
+        demo_lessons = pd.read_csv(DEMO_LESSONS_PATH)
+        df = pd.concat([df, demo_lessons], ignore_index=True)
+
     # only rows with a real (non-empty, non-NaN) lesson recorded
     df = df[df["lessons_learned"].notna() & (df["lessons_learned"].str.strip() != "")].reset_index(drop=True)
     if sample_size is not None:
@@ -85,10 +95,16 @@ def search_lessons(query_text, index, top_k=LESSONS_TOP_K, threshold=LESSONS_THR
     scored = list(zip(index["incident_ids"], index["metadata"], scores))
     scored = [item for item in scored if item[2] >= threshold]
     scored.sort(key=lambda x: x[2], reverse=True)
-    top_matches = scored[:top_k]
 
+    # Many incidents record the very same lesson. Show each distinct lesson once (its best match),
+    # so the top results are different lessons instead of one sentence repeated.
     results = []
-    for incident_id, meta, score in top_matches:
+    seen_lessons = set()
+    for incident_id, meta, score in scored:
+        lesson_key = " ".join(str(meta["lessons_learned"]).split()).lower()
+        if lesson_key in seen_lessons:
+            continue
+        seen_lessons.add(lesson_key)
         results.append({
             "incident_id": incident_id,
             "relevance_score": round(float(score), 3),
@@ -97,4 +113,6 @@ def search_lessons(query_text, index, top_k=LESSONS_TOP_K, threshold=LESSONS_THR
             "category": meta["category"],
             "department": meta["department"],
         })
+        if len(results) >= top_k:
+            break
     return results

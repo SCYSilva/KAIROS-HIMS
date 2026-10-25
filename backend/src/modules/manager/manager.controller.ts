@@ -16,6 +16,7 @@ import {
   closeIncidentGateSchema,
   updateTeamRoleSchema,
   riskOverrideSchema,
+  lessonsSearchSchema,
 } from './manager.validator';
 
 const getAuthContext = (req: Request) => {
@@ -103,6 +104,13 @@ export const clearIncidentRiskOverride = catchAsync(async (req: Request, res: Re
   const data = await managerService.clearRiskOverride(incidentId, departmentId, userId);
 
   return res.status(200).json({ success: true, message: 'Reverted to the AI prediction', data });
+});
+
+export const searchLessons = catchAsync(async (req: Request, res: Response) => {
+  const { q } = lessonsSearchSchema.parse(req.query);
+  const data = await managerService.searchLessons(q);
+
+  return res.status(200).json({ success: true, data });
 });
 
 export const triageIncident = catchAsync(async (req: Request, res: Response) => {
